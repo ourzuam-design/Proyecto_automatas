@@ -1,0 +1,4 @@
+Estado,0,1,B
+q0,(q0, 0, R),(q0, 1, R),(q1, B, L)
+q1,(q_accept, 1, S),(q1, 0, L),(q_accept, 1, S)
+q_accept,,,
