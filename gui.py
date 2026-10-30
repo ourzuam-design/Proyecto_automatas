@@ -27,6 +27,10 @@ class TuringMachineGUI:
         self.drag_offset_x = 0.0
         self.drag_offset_y = 0.0
 
+        # Control del layout del diagrama (evita calcularlo con un canvas de 1x1 px)
+        self._layout_size: Tuple[int, int] = (0, 0)
+        self._nodes_moved = False
+
         self.is_simulating = False
         self.sim_after_id = None
 
@@ -628,7 +632,24 @@ class TuringMachineGUI:
         self.graph_canvas.bind("<ButtonPress-1>", self.on_graph_click)
         self.graph_canvas.bind("<B1-Motion>", self.on_graph_drag)
         self.graph_canvas.bind("<ButtonRelease-1>", self.on_graph_release)
-        self.graph_canvas.bind("<Configure>", lambda e: self.draw_graph())
+        self.graph_canvas.bind("<Configure>", self.on_graph_resize)
+
+    def on_graph_resize(self, event):
+        """
+        Se dispara cuando el canvas del diagrama recibe su tamaño real
+        (por ejemplo, al mostrar la pestaña por primera vez) o cuando cambia.
+        Recalcula el layout con el tamaño correcto, salvo que el usuario ya
+        haya movido nodos a mano.
+        """
+        if event.width < 50 or event.height < 50:
+            return
+        size = (event.width, event.height)
+        if size != self._layout_size and not self._nodes_moved:
+            self._layout_size = size
+            self.recalculate_graph_layout()
+        else:
+            self._layout_size = size
+            self.draw_graph()
 
     def new_blank_machine(self):
         self.tm = TuringMachine(
@@ -794,10 +815,10 @@ class TuringMachineGUI:
 
         is_valid, msgs = self.tm.validate()
 
-        self.recalculate_graph_layout()
-        self.draw_graph()
-
         self.notebook.select(self.tab_graph)
+        # Forzar que el canvas obtenga su tamaño real antes de calcular el layout
+        self.root.update_idletasks()
+        self.recalculate_graph_layout()
 
         trans_count = len(self.tm.transitions)
         states_count = len(self.tm.states)
@@ -1066,8 +1087,15 @@ class TuringMachineGUI:
                 self.tape_canvas.create_text(center_x, arrow_y + 26, text="CABEZAL", font=("Segoe UI", 8, "bold"), fill="#2563eb")
 
     def recalculate_graph_layout(self):
-        w = self.graph_canvas.winfo_width() or 750
-        h = self.graph_canvas.winfo_height() or 500
+        # Antes de que la ventana se dibuje, winfo_width() devuelve 1.
+        # Si el tamaño no es confiable, usamos un tamaño por defecto;
+        # on_graph_resize recalculará cuando el canvas tenga su tamaño real.
+        w = self.graph_canvas.winfo_width()
+        h = self.graph_canvas.winfo_height()
+        if w < 50 or h < 50:
+            w, h = 750, 500
+
+        self._nodes_moved = False
         states_list = sorted(list(self.tm.states))
         self.node_positions = GraphLayout.compute_positions(
             states=states_list,
@@ -1206,6 +1234,7 @@ class TuringMachineGUI:
             new_x = event.x + self.drag_offset_x
             new_y = event.y + self.drag_offset_y
             self.node_positions[self.drag_node] = (new_x, new_y)
+            self._nodes_moved = True
             self.draw_graph()
 
     def on_graph_release(self, event):
