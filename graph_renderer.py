@@ -1,15 +1,9 @@
-"""
-Módulo de Visualización y Renderizado del Grafo de la Máquina de Turing.
-Permite calcular la distribución de nodos del autómata para su renderizado en Tkinter Canvas.
-"""
-
 import math
 from typing import Dict, Tuple, List
 
 
 class DistribucionGrafo:
-    """Calcula las posiciones (x, y) de los estados del autómata."""
-
+    
     @staticmethod
     def calcular_posiciones(
         estados: List[str],
@@ -18,9 +12,7 @@ class DistribucionGrafo:
         alto: float = 500.0,
         margen: float = 80.0
     ) -> Dict[str, Tuple[float, float]]:
-        """
-        Calcula una distribución circular ordenada poniendo el estado inicial al inicio.
-        """
+        
         total_estados = len(estados)
         if total_estados == 0:
             return {}

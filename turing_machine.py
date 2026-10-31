@@ -3,7 +3,7 @@ Módulo del Núcleo de la Máquina de Turing.
 Define la estructura formal, validación y simulación paso a paso.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, Tuple, Set, List, Optional
 import json
@@ -17,6 +17,11 @@ class Direccion(str, Enum):
     DERECHA = 'R'
     QUIETO = 'S'
 
+    # Alias para compatibilidad con código existente
+    LEFT = 'L'
+    RIGHT = 'R'
+    STAY = 'S'
+
     @classmethod
     def desde_cadena(cls, valor: str) -> 'Direccion':
         valor = valor.strip().upper()
@@ -28,11 +33,30 @@ class Direccion(str, Enum):
             return cls.QUIETO
         raise ValueError(f"Dirección inválida: '{valor}'. Use 'L', 'R' o 'S'.")
 
+    # Alias del método
+    from_str = desde_cadena
+
+
+# Alias de clase para compatibilidad
+Direction = Direccion
+
 
 @dataclass(frozen=True)
 class ClaveTransicion:
     estado: str
     simbolo: str
+
+    @property
+    def state(self) -> str:
+        return self.estado
+
+    @property
+    def symbol(self) -> str:
+        return self.simbolo
+
+
+# Alias para compatibilidad
+TransitionKey = ClaveTransicion
 
 
 @dataclass
@@ -40,6 +64,22 @@ class ValorTransicion:
     nuevo_estado: str
     simbolo_escrito: str
     direccion: Direccion
+
+    @property
+    def next_state(self) -> str:
+        return self.nuevo_estado
+
+    @property
+    def write_symbol(self) -> str:
+        return self.simbolo_escrito
+
+    @property
+    def direction(self) -> Direccion:
+        return self.direccion
+
+
+# Alias para compatibilidad
+TransitionValue = ValorTransicion
 
 
 @dataclass
@@ -53,6 +93,50 @@ class RegistroPaso:
     posicion_cabezal: int
     captura_cinta: str
     descripcion_estado: str
+
+    @property
+    def step_number(self) -> int:
+        return self.numero_paso
+
+    @property
+    def current_state(self) -> str:
+        return self.estado_actual
+
+    @property
+    def read_symbol(self) -> str:
+        return self.simbolo_leido
+
+    @property
+    def next_state(self) -> Optional[str]:
+        return self.nuevo_estado
+
+    @property
+    def write_symbol(self) -> Optional[str]:
+        return self.simbolo_escrito
+
+    @property
+    def direction(self) -> Optional[Direccion]:
+        return self.direccion
+
+    @property
+    def head_position(self) -> int:
+        return self.posicion_cabezal
+
+    @property
+    def tape_snapshot(self) -> str:
+        return self.captura_cinta
+
+    @property
+    def status_description(self) -> str:
+        return self.descripcion_estado
+
+    @status_description.setter
+    def status_description(self, valor: str):
+        self.descripcion_estado = valor
+
+
+# Alias para compatibilidad
+StepRecord = RegistroPaso
 
 
 class MaquinaTuring:
@@ -71,15 +155,36 @@ class MaquinaTuring:
         estado_inicial: str = "q0",
         estados_aceptacion: Optional[Set[str]] = None,
         estados_rechazo: Optional[Set[str]] = None,
+        # Parámetros alternativos para compatibilidad
+        name: Optional[str] = None,
+        states: Optional[Set[str]] = None,
+        input_alphabet: Optional[Set[str]] = None,
+        tape_alphabet: Optional[Set[str]] = None,
+        blank_symbol: Optional[str] = None,
+        initial_state: Optional[str] = None,
+        accept_states: Optional[Set[str]] = None,
+        reject_states: Optional[Set[str]] = None,
     ):
-        self.nombre = nombre
-        self.simbolo_blanco = simbolo_blanco if simbolo_blanco else "B"
-        self.estados = set(estados) if estados else {estado_inicial}
-        self.alfabeto_entrada = set(alfabeto_entrada) if alfabeto_entrada else set()
-        self.alfabeto_cinta = set(alfabeto_cinta) if alfabeto_cinta else set()
-        self.estado_inicial = estado_inicial
-        self.estados_aceptacion = set(estados_aceptacion) if estados_aceptacion else set()
-        self.estados_rechazo = set(estados_rechazo) if estados_rechazo else set()
+        self.nombre = name if name is not None else nombre
+        blanco = blank_symbol if blank_symbol is not None else simbolo_blanco
+        self.simbolo_blanco = blanco if blanco else "B"
+
+        estados_base = states if states is not None else estados
+        self.estados = set(estados_base) if estados_base else {initial_state or estado_inicial}
+
+        sigma_base = input_alphabet if input_alphabet is not None else alfabeto_entrada
+        self.alfabeto_entrada = set(sigma_base) if sigma_base else set()
+
+        gamma_base = tape_alphabet if tape_alphabet is not None else alfabeto_cinta
+        self.alfabeto_cinta = set(gamma_base) if gamma_base else set()
+
+        self.estado_inicial = initial_state if initial_state is not None else estado_inicial
+
+        aceptacion_base = accept_states if accept_states is not None else estados_aceptacion
+        self.estados_aceptacion = set(aceptacion_base) if aceptacion_base else set()
+
+        rechazo_base = reject_states if reject_states is not None else estados_rechazo
+        self.estados_rechazo = set(rechazo_base) if rechazo_base else set()
 
         self.transiciones: Dict[ClaveTransicion, ValorTransicion] = {}
 
@@ -98,6 +203,146 @@ class MaquinaTuring:
         self.rechazada: bool = False
         self.historial: List[RegistroPaso] = []
 
+    # ==========================================
+    # Propiedades para compatibilidad en inglés
+    # ==========================================
+    @property
+    def name(self) -> str:
+        return self.nombre
+
+    @name.setter
+    def name(self, valor: str):
+        self.nombre = valor
+
+    @property
+    def blank_symbol(self) -> str:
+        return self.simbolo_blanco
+
+    @blank_symbol.setter
+    def blank_symbol(self, valor: str):
+        self.simbolo_blanco = valor
+
+    @property
+    def states(self) -> Set[str]:
+        return self.estados
+
+    @states.setter
+    def states(self, valor: Set[str]):
+        self.estados = valor
+
+    @property
+    def input_alphabet(self) -> Set[str]:
+        return self.alfabeto_entrada
+
+    @input_alphabet.setter
+    def input_alphabet(self, valor: Set[str]):
+        self.alfabeto_entrada = valor
+
+    @property
+    def tape_alphabet(self) -> Set[str]:
+        return self.alfabeto_cinta
+
+    @tape_alphabet.setter
+    def tape_alphabet(self, valor: Set[str]):
+        self.alfabeto_cinta = valor
+
+    @property
+    def initial_state(self) -> str:
+        return self.estado_inicial
+
+    @initial_state.setter
+    def initial_state(self, valor: str):
+        self.estado_inicial = valor
+
+    @property
+    def accept_states(self) -> Set[str]:
+        return self.estados_aceptacion
+
+    @accept_states.setter
+    def accept_states(self, valor: Set[str]):
+        self.estados_aceptacion = valor
+
+    @property
+    def reject_states(self) -> Set[str]:
+        return self.estados_rechazo
+
+    @reject_states.setter
+    def reject_states(self, valor: Set[str]):
+        self.estados_rechazo = valor
+
+    @property
+    def transitions(self) -> Dict[ClaveTransicion, ValorTransicion]:
+        return self.transiciones
+
+    @transitions.setter
+    def transitions(self, valor: Dict[ClaveTransicion, ValorTransicion]):
+        self.transiciones = valor
+
+    @property
+    def tape(self) -> Dict[int, str]:
+        return self.cinta
+
+    @tape.setter
+    def tape(self, valor: Dict[int, str]):
+        self.cinta = valor
+
+    @property
+    def head_position(self) -> int:
+        return self.posicion_cabezal
+
+    @head_position.setter
+    def head_position(self, valor: int):
+        self.posicion_cabezal = valor
+
+    @property
+    def current_state(self) -> str:
+        return self.estado_actual
+
+    @current_state.setter
+    def current_state(self, valor: str):
+        self.estado_actual = valor
+
+    @property
+    def step_count(self) -> int:
+        return self.contador_pasos
+
+    @step_count.setter
+    def step_count(self, valor: int):
+        self.contador_pasos = valor
+
+    @property
+    def halted(self) -> bool:
+        return self.detenida
+
+    @halted.setter
+    def halted(self, valor: bool):
+        self.detenida = valor
+
+    @property
+    def accepted(self) -> bool:
+        return self.aceptada
+
+    @accepted.setter
+    def accepted(self, valor: bool):
+        self.aceptada = valor
+
+    @property
+    def rejected(self) -> bool:
+        return self.rechazada
+
+    @rejected.setter
+    def rejected(self, valor: bool):
+        self.rechazada = valor
+
+    @property
+    def history(self) -> List[RegistroPaso]:
+        return self.historial
+
+    @history.setter
+    def history(self, valor: List[RegistroPaso]):
+        self.historial = valor
+
+
     def agregar_transicion(
         self,
         estado: str,
@@ -106,7 +351,7 @@ class MaquinaTuring:
         simbolo_escrito: str,
         direccion: Direccion | str
     ):
-        """Agrega o actualiza una transición en la función delta."""
+        
         dir_enum = direccion if isinstance(direccion, Direccion) else Direccion.desde_cadena(direccion)
         estado = estado.strip()
         simbolo_leido = simbolo_leido.strip()
@@ -122,6 +367,8 @@ class MaquinaTuring:
         valor = ValorTransicion(nuevo_estado, simbolo_escrito, dir_enum)
         self.transiciones[clave] = valor
 
+    add_transition = agregar_transicion
+
     def eliminar_transicion(self, estado: str, simbolo_leido: str) -> bool:
         """Elimina una transición existente."""
         clave = ClaveTransicion(estado.strip(), simbolo_leido.strip())
@@ -130,15 +377,15 @@ class MaquinaTuring:
             return True
         return False
 
+    remove_transition = eliminar_transicion
+
     def limpiar_transiciones(self):
-        """Limpia todas las transiciones."""
         self.transiciones.clear()
 
+    clear_transitions = limpiar_transiciones
+
     def validar(self) -> Tuple[bool, List[str]]:
-        """
-        Valida formalmente la máquina de Turing.
-        Retorna (es_valida, lista_de_advertencias_o_errores).
-        """
+    
         errores = []
 
         if not self.estados:
@@ -172,8 +419,9 @@ class MaquinaTuring:
         es_valida = len(errores) == 0 or all("recomienda" in err for err in errores)
         return es_valida, errores
 
+    validate = validar
+
     def cargar_entrada(self, cadena_entrada: str = ""):
-        """Carga una palabra de entrada en la cinta y reinicia la máquina."""
         self.cinta.clear()
         self.posicion_cabezal = 0
         self.estado_actual = self.estado_inicial
@@ -206,20 +454,25 @@ class MaquinaTuring:
             self.aceptada = True
             self.historial[-1].descripcion_estado = "Parada: Cadena aceptada (Estado inicial es de aceptación)."
 
+    load_input = cargar_entrada
+
     def obtener_simbolo_cinta(self, posicion: int) -> str:
         """Obtiene el símbolo en una posición dada de la cinta (o blanco)."""
         return self.cinta.get(posicion, self.simbolo_blanco)
 
+    get_tape_symbol = obtener_simbolo_cinta
+
     def obtener_limites_cinta(self) -> Tuple[int, int]:
-        """Calcula el rango [min_idx, max_idx] con símbolos no blancos y la cabeza."""
+    
         indices = list(self.cinta.keys())
         indices.append(self.posicion_cabezal)
         min_indice = min(indices)
         max_indice = max(indices)
         return min_indice - 1, max_indice + 1
 
+    get_tape_bounds = obtener_limites_cinta
+
     def obtener_cadena_cinta(self) -> str:
-        """Retorna una representación compacta de la cinta."""
         min_indice, max_indice = self.obtener_limites_cinta()
         caracteres = []
         for i in range(min_indice, max_indice + 1):
@@ -229,6 +482,8 @@ class MaquinaTuring:
             else:
                 caracteres.append(caracter)
         return "".join(caracteres)
+
+    get_tape_string = obtener_cadena_cinta
 
     def ejecutar_paso(self) -> Tuple[bool, str]:
         """
@@ -298,6 +553,9 @@ class MaquinaTuring:
 
         return not self.detenida, mensaje
 
+    step = ejecutar_paso
+    paso = ejecutar_paso
+
     def ejecutar(self, cadena_entrada: str = "", max_pasos: int = 2000) -> Tuple[bool, str, int]:
         """
         Ejecuta la máquina completa sobre una palabra dada hasta que se detenga o supere max_pasos.
@@ -317,6 +575,8 @@ class MaquinaTuring:
         resultado_texto = "ACEPTADA" if self.aceptada else "RECHAZADA"
         return self.aceptada, f"Ejecución finalizada en {self.contador_pasos} pasos: {resultado_texto}", self.contador_pasos
 
+    run = ejecutar
+
     def a_diccionario(self) -> dict:
         """Serializa la máquina a un diccionario."""
         return {
@@ -335,14 +595,29 @@ class MaquinaTuring:
                     "nuevo_estado": valor.nuevo_estado,
                     "simbolo_escrito": valor.simbolo_escrito,
                     "direccion": valor.direccion.value,
+                    # Claves de compatibilidad
+                    "state": clave.estado,
+                    "read_symbol": clave.simbolo,
+                    "next_state": valor.nuevo_estado,
+                    "write_symbol": valor.simbolo_escrito,
+                    "direction": valor.direccion.value,
                 }
                 for clave, valor in sorted(self.transiciones.items(), key=lambda x: (x[0].estado, x[0].simbolo))
-            ]
+            ],
+            "name": self.nombre,
+            "blank_symbol": self.simbolo_blanco,
+            "input_alphabet": sorted(list(self.alfabeto_entrada)),
+            "tape_alphabet": sorted(list(self.alfabeto_cinta)),
+            "states": sorted(list(self.estados)),
+            "initial_state": self.estado_inicial,
+            "accept_states": sorted(list(self.estados_aceptacion)),
+            "reject_states": sorted(list(self.estados_rechazo)),
         }
+
+    to_dict = a_diccionario
 
     @classmethod
     def desde_diccionario(cls, datos: dict) -> 'MaquinaTuring':
-        """Crea una Máquina de Turing a partir de un diccionario."""
         nombre = datos.get("nombre") or datos.get("name", "Máquina de Turing")
         simbolo_blanco = datos.get("simbolo_blanco") or datos.get("blank_symbol", "B")
         alfabeto_entrada = set(datos.get("alfabeto_entrada") or datos.get("input_alphabet", []))
@@ -377,14 +652,20 @@ class MaquinaTuring:
             )
         return mt
 
+    from_dict = desde_diccionario
+
     def a_json(self, sangria: int = 2) -> str:
-        """Exporta la máquina como cadena JSON."""
+    
         return json.dumps(self.a_diccionario(), indent=sangria, ensure_ascii=False)
+
+    to_json = a_json
 
     @classmethod
     def desde_json(cls, cadena_json: str) -> 'MaquinaTuring':
         """Carga la máquina desde una cadena JSON."""
         return cls.desde_diccionario(json.loads(cadena_json))
+
+    from_json = desde_json
 
     def obtener_matriz_transiciones(self) -> Tuple[List[str], List[str], Dict[Tuple[str, str], str]]:
         """
@@ -400,6 +681,8 @@ class MaquinaTuring:
 
         return estados, simbolos, matriz
 
+    get_transition_matrix = obtener_matriz_transiciones
+
     @staticmethod
     def analizar_celda_transicion(cadena_celda: str) -> Optional[Tuple[str, str, Direccion]]:
         s = cadena_celda.strip()
@@ -413,6 +696,8 @@ class MaquinaTuring:
         elif len(partes) == 1:
             raise ValueError(f"La celda '{cadena_celda}' debe incluir (nuevo_estado, símbolo_escrito, dirección L/R/S).")
         raise ValueError(f"Formato no reconocido en celda: '{cadena_celda}'. Se esperaba (estado, símbolo, dirección).")
+
+    parse_transition_cell = analizar_celda_transicion
 
     @staticmethod
     def separar_fila_inteligente(fila_str: str) -> List[str]:
@@ -441,6 +726,8 @@ class MaquinaTuring:
         elementos.append(''.join(actual).strip().strip('"\''))
         return elementos
 
+    smart_split_row = separar_fila_inteligente
+
     def establecer_transiciones_matriz(
         self,
         datos_matriz: Dict[Tuple[str, str], str],
@@ -466,6 +753,8 @@ class MaquinaTuring:
 
         return agregadas, errores
 
+    set_matrix_transitions = establecer_transiciones_matriz
+
     def a_csv(self) -> str:
         estados = sorted(list(self.estados))
         simbolos = sorted(list(self.alfabeto_cinta))
@@ -483,6 +772,8 @@ class MaquinaTuring:
             escritor.writerow(fila)
 
         return salida.getvalue()
+
+    to_csv = a_csv
 
     def importar_desde_texto(self, texto_bruto: str, limpiar_existentes: bool = True) -> Tuple[bool, str, int]:
         lineas = [l.strip() for l in texto_bruto.splitlines() if l.strip() and not l.strip().startswith("#")]
@@ -550,3 +841,7 @@ class MaquinaTuring:
             return True, msg, agregadas
         else:
             return False, f"No se pudo interpretar el formato de las transiciones. Errores: {'; '.join(errores[:3])}", 0
+
+    import_from_text = importar_desde_texto
+
+TuringMachine = MaquinaTuring
