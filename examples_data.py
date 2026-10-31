@@ -1,139 +1,126 @@
 """
-Colección de ejemplos clásicos de Máquinas de Turing predefinidas.
-Útiles para pruebas rápidas y demostraciones didácticas.
+Módulo de Ejemplos Predefinidos de Máquinas de Turing.
+Contiene autómatas clásicos para pruebas y demostraciones.
 """
 
-from turing_machine import TuringMachine
+from turing_machine import MaquinaTuring
 
 
-def get_an_bn_machine() -> TuringMachine:
+def obtener_maquina_an_bn() -> MaquinaTuring:
     """
     Reconocedor del lenguaje L = { a^n b^n | n >= 1 }
     Alfabeto de entrada: {a, b}
     Alfabeto de cinta: {a, b, X, Y, B}
     """
-    tm = TuringMachine(
-        name="Reconocedor de a^n b^n (n >= 1)",
-        input_alphabet={"a", "b"},
-        tape_alphabet={"a", "b", "X", "Y", "B"},
-        blank_symbol="B",
-        initial_state="q0",
-        accept_states={"q4"},
-        reject_states={"q_reject"}
+    mt = MaquinaTuring(
+        nombre="Reconocedor de a^n b^n (n >= 1)",
+        alfabeto_entrada={"a", "b"},
+        alfabeto_cinta={"a", "b", "X", "Y", "B"},
+        simbolo_blanco="B",
+        estado_inicial="q0",
+        estados_aceptacion={"q4"},
     )
-    # q0: Lee 'a', la marca con 'X' y va a buscar 'b'
-    tm.add_transition("q0", "a", "q1", "X", "R")
-    tm.add_transition("q0", "Y", "q3", "Y", "R")  # Si encuentra Y al inicio, verifica si solo quedan Y
+    mt.agregar_transicion("q0", "a", "q1", "X", "R")
+    mt.agregar_transicion("q0", "Y", "q3", "Y", "R")
 
-    # q1: Salta 'a' y 'Y' buscando la primera 'b'
-    tm.add_transition("q1", "a", "q1", "a", "R")
-    tm.add_transition("q1", "Y", "q1", "Y", "R")
-    tm.add_transition("q1", "b", "q2", "Y", "L")  # Encuentra 'b', la marca con 'Y' y regresa
+    mt.agregar_transicion("q1", "a", "q1", "a", "R")
+    mt.agregar_transicion("q1", "Y", "q1", "Y", "R")
+    mt.agregar_transicion("q1", "b", "q2", "Y", "L")
 
-    # q2: Retrocede hasta encontrar la 'X' más reciente
-    tm.add_transition("q2", "a", "q2", "a", "L")
-    tm.add_transition("q2", "Y", "q2", "Y", "L")
-    tm.add_transition("q2", "X", "q0", "X", "R")  # Al encontrar 'X', se posiciona en el siguiente símbolo
+    mt.agregar_transicion("q2", "a", "q2", "a", "L")
+    mt.agregar_transicion("q2", "Y", "q2", "Y", "L")
+    mt.agregar_transicion("q2", "X", "q0", "X", "R")
 
-    # q3: Verifica que solo queden 'Y' antes del blanco final
-    tm.add_transition("q3", "Y", "q3", "Y", "R")
-    tm.add_transition("q3", "B", "q4", "B", "S")  # Aceptación
+    mt.agregar_transicion("q3", "Y", "q3", "Y", "R")
+    mt.agregar_transicion("q3", "B", "q4", "B", "S")
 
-    return tm
+    return mt
 
 
-def get_binary_increment_machine() -> TuringMachine:
+def obtener_maquina_incrementador_binario() -> MaquinaTuring:
     """
     Incrementador binario: Suma 1 a un número binario (ej. 1011 -> 1100).
     Alfabeto de entrada: {0, 1}
     Alfabeto de cinta: {0, 1, B}
     """
-    tm = TuringMachine(
-        name="Incrementador Binario (w + 1)",
-        input_alphabet={"0", "1"},
-        tape_alphabet={"0", "1", "B"},
-        blank_symbol="B",
-        initial_state="q0",
-        accept_states={"q_accept"}
+    mt = MaquinaTuring(
+        nombre="Incrementador Binario (w + 1)",
+        alfabeto_entrada={"0", "1"},
+        alfabeto_cinta={"0", "1", "B"},
+        simbolo_blanco="B",
+        estado_inicial="q0",
+        estados_aceptacion={"q2"}
     )
-    # q0: Se desplaza a la derecha hasta el final del número
-    tm.add_transition("q0", "0", "q0", "0", "R")
-    tm.add_transition("q0", "1", "q0", "1", "R")
-    tm.add_transition("q0", "B", "q1", "B", "L")  # Llegó al final, regresa un paso hacia el bit menos significativo
+    mt.agregar_transicion("q0", "0", "q0", "0", "R")
+    mt.agregar_transicion("q0", "1", "q0", "1", "R")
+    mt.agregar_transicion("q0", "B", "q1", "B", "L")
 
-    # q1: Suma 1 con propagación de acarreo hacia la izquierda
-    tm.add_transition("q1", "0", "q_accept", "1", "S")  # 0 + 1 = 1 (sin acarreo, termina)
-    tm.add_transition("q1", "1", "q1", "0", "L")        # 1 + 1 = 0 (acarreo a la izquierda)
-    tm.add_transition("q1", "B", "q_accept", "1", "S")  # Acarreo sobrepasó el inicio (ej: 111 -> 1000)
+    mt.agregar_transicion("q1", "0", "q2", "1", "S")
+    mt.agregar_transicion("q1", "1", "q1", "0", "L")
+    mt.agregar_transicion("q1", "B", "q2", "1", "S")
 
-    return tm
+    return mt
 
 
-def get_palindrome_machine() -> TuringMachine:
+def obtener_maquina_palindromos() -> MaquinaTuring:
     """
     Reconocedor de Palíndromos sobre el alfabeto {a, b}.
     Ejemplos aceptados: 'aba', 'abba', 'a', '', 'bbaabb'
     """
-    tm = TuringMachine(
-        name="Reconocedor de Palíndromos {a, b}",
-        input_alphabet={"a", "b"},
-        tape_alphabet={"a", "b", "B"},
-        blank_symbol="B",
-        initial_state="q0",
-        accept_states={"q_accept"}
+    mt = MaquinaTuring(
+        nombre="Reconocedor de Palíndromos {a, b}",
+        alfabeto_entrada={"a", "b"},
+        alfabeto_cinta={"a", "b", "B"},
+        simbolo_blanco="B",
+        estado_inicial="q0",
+        estados_aceptacion={"q6"}
     )
-    # q0: Lee el primer símbolo, lo borra y recuerda cuál fue
-    tm.add_transition("q0", "a", "q_find_a", "B", "R")
-    tm.add_transition("q0", "b", "q_find_b", "B", "R")
-    tm.add_transition("q0", "B", "q_accept", "B", "S")  # Cadena vacía o de longitud par completada
+    mt.agregar_transicion("q0", "a", "q1", "B", "R")
+    mt.agregar_transicion("q0", "b", "q2", "B", "R")
+    mt.agregar_transicion("q0", "B", "q6", "B", "S")
 
-    # Rama para 'a': Avanza hasta el blanco final
-    tm.add_transition("q_find_a", "a", "q_find_a", "a", "R")
-    tm.add_transition("q_find_a", "b", "q_find_a", "b", "R")
-    tm.add_transition("q_find_a", "B", "q_check_a", "B", "L")
+    mt.agregar_transicion("q1", "a", "q1", "a", "R")
+    mt.agregar_transicion("q1", "b", "q1", "b", "R")
+    mt.agregar_transicion("q1", "B", "q3", "B", "L")
 
-    # Verifica si el último símbolo coincide con 'a'
-    tm.add_transition("q_check_a", "a", "q_rewind", "B", "L")  # Coincide: lo borra y retrocede
-    tm.add_transition("q_check_a", "B", "q_accept", "B", "S")  # Solo había 1 símbolo 'a'
+    mt.agregar_transicion("q3", "a", "q5", "B", "L")
+    mt.agregar_transicion("q3", "B", "q6", "B", "S")
 
-    # Rama para 'b': Avanza hasta el blanco final
-    tm.add_transition("q_find_b", "a", "q_find_b", "a", "R")
-    tm.add_transition("q_find_b", "b", "q_find_b", "b", "R")
-    tm.add_transition("q_find_b", "B", "q_check_b", "B", "L")
+    mt.agregar_transicion("q2", "a", "q2", "a", "R")
+    mt.agregar_transicion("q2", "b", "q2", "b", "R")
+    mt.agregar_transicion("q2", "B", "q4", "B", "L")
 
-    # Verifica si el último símbolo coincide con 'b'
-    tm.add_transition("q_check_b", "b", "q_rewind", "B", "L")  # Coincide: lo borra y retrocede
-    tm.add_transition("q_check_b", "B", "q_accept", "B", "S")  # Solo había 1 símbolo 'b'
+    mt.agregar_transicion("q4", "b", "q5", "B", "L")
+    mt.agregar_transicion("q4", "B", "q6", "B", "S")
 
-    # q_rewind: Retrocede hasta el inicio de la palabra restante
-    tm.add_transition("q_rewind", "a", "q_rewind", "a", "L")
-    tm.add_transition("q_rewind", "b", "q_rewind", "b", "L")
-    tm.add_transition("q_rewind", "B", "q0", "B", "R")  # Llegó al blanco inicial, reinicia el ciclo en q0
+    mt.agregar_transicion("q5", "a", "q5", "a", "L")
+    mt.agregar_transicion("q5", "b", "q5", "b", "L")
+    mt.agregar_transicion("q5", "B", "q0", "B", "R")
 
-    return tm
+    return mt
 
 
-def get_bit_inverter_machine() -> TuringMachine:
+def obtener_maquina_inversor_bits() -> MaquinaTuring:
     """
     Inversor de bits (Complemento a 1): cambia 0 por 1 y 1 por 0.
     """
-    tm = TuringMachine(
-        name="Inversor de Bits (0 -> 1, 1 -> 0)",
-        input_alphabet={"0", "1"},
-        tape_alphabet={"0", "1", "B"},
-        blank_symbol="B",
-        initial_state="q0",
-        accept_states={"q_accept"}
+    mt = MaquinaTuring(
+        nombre="Inversor de Bits (0 -> 1, 1 -> 0)",
+        alfabeto_entrada={"0", "1"},
+        alfabeto_cinta={"0", "1", "B"},
+        simbolo_blanco="B",
+        estado_inicial="q0",
+        estados_aceptacion={"q1"}
     )
-    tm.add_transition("q0", "0", "q0", "1", "R")
-    tm.add_transition("q0", "1", "q0", "0", "R")
-    tm.add_transition("q0", "B", "q_accept", "B", "S")
-    return tm
+    mt.agregar_transicion("q0", "0", "q0", "1", "R")
+    mt.agregar_transicion("q0", "1", "q0", "0", "R")
+    mt.agregar_transicion("q0", "B", "q1", "B", "S")
+    return mt
 
 
-AVAILABLE_EXAMPLES = {
-    "a^n b^n (n >= 1)": get_an_bn_machine,
-    "Incrementador Binario (w + 1)": get_binary_increment_machine,
-    "Palíndromos {a, b}": get_palindrome_machine,
-    "Inversor de Bits (Complemento a 1)": get_bit_inverter_machine,
+EJEMPLOS_DISPONIBLES = {
+    "a^n b^n (n >= 1)": obtener_maquina_an_bn,
+    "Incrementador Binario (w + 1)": obtener_maquina_incrementador_binario,
+    "Palíndromos {a, b}": obtener_maquina_palindromos,
+    "Inversor de Bits (Complemento a 1)": obtener_maquina_inversor_bits,
 }

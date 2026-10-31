@@ -1,3 +1,8 @@
+"""
+Módulo de la Interfaz Gráfica de Usuario (GUI) para la Máquina de Turing.
+Permite definir, visualizar en grafo, editar en matriz y simular la cinta interactivamente.
+"""
+
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import tkinter.scrolledtext as scrolledtext
@@ -5,265 +10,284 @@ import math
 import os
 from typing import Dict, Tuple, List, Optional
 
-from turing_machine import TuringMachine, Direction, TransitionKey
-from graph_renderer import GraphLayout
-from examples_data import AVAILABLE_EXAMPLES
+from turing_machine import MaquinaTuring, Direccion, ClaveTransicion
+from graph_renderer import DistribucionGrafo
+from examples_data import EJEMPLOS_DISPONIBLES
 
 
-class TuringMachineGUI:
+class InterfazMaquinaTuring:
 
-    def __init__(self, root: tk.Tk):
-        self.root = root
-        self.root.title("Simulador y Diseñador de Máquinas de Turing")
-        self.root.geometry("1100x750")
-        self.root.minsize(950, 650)
+    def __init__(self, raiz: tk.Tk):
+        self.raiz = raiz
+        self.raiz.title("Simulador y Diseñador de Máquinas de Turing")
+        self.raiz.geometry("1100x750")
+        self.raiz.minsize(950, 650)
 
-        self.setup_styles()
+        self.configurar_estilos()
 
-        self.tm: TuringMachine = AVAILABLE_EXAMPLES["a^n b^n (n >= 1)"]()
+        self.mt: MaquinaTuring = EJEMPLOS_DISPONIBLES["a^n b^n (n >= 1)"]()
 
-        self.node_positions: Dict[str, Tuple[float, float]] = {}
-        self.drag_node: Optional[str] = None
-        self.drag_offset_x = 0.0
-        self.drag_offset_y = 0.0
+        self.posiciones_nodos: Dict[str, Tuple[float, float]] = {}
+        self.nodo_arrastrado: Optional[str] = None
+        self.desplazamiento_arrastre_x = 0.0
+        self.desplazamiento_arrastre_y = 0.0
 
-        # Control del layout del diagrama (evita calcularlo con un canvas de 1x1 px)
-        self._layout_size: Tuple[int, int] = (0, 0)
-        self._nodes_moved = False
+        self._tamano_lienzo: Tuple[int, int] = (0, 0)
+        self._nodos_movidos = False
 
-        self.is_simulating = False
-        self.sim_after_id = None
+        self.simulando = False
+        self.id_temporizador_simulacion = None
 
-        self.matrix_entries: Dict[Tuple[str, str], ttk.Entry] = {}
+        self.entradas_matriz: Dict[Tuple[str, str], ttk.Entry] = {}
 
-        self.build_ui()
-        self.load_machine_into_ui()
+        self.construir_interfaz()
+        self.cargar_maquina_en_interfaz()
 
-    def setup_styles(self):
-        self.style = ttk.Style()
+    def configurar_estilos(self):
+        self.estilo = ttk.Style()
         try:
-            self.style.theme_use('clam')
+            self.estilo.theme_use('clam')
         except Exception:
             pass
 
-        self.style.configure("TNotebook.Tab", font=("Segoe UI", 10, "bold"), padding=[12, 6])
-        self.style.configure("Accent.TButton", font=("Segoe UI", 9, "bold"), foreground="#ffffff", background="#2563eb")
-        self.style.configure("Success.TButton", font=("Segoe UI", 9, "bold"), foreground="#ffffff", background="#16a34a")
-        self.style.configure("Danger.TButton", font=("Segoe UI", 9, "bold"), foreground="#ffffff", background="#dc2626")
+        self.estilo.configure("TNotebook.Tab", font=("Segoe UI", 10, "bold"), padding=[12, 6])
+        self.estilo.configure("Accent.TButton", font=("Segoe UI", 9, "bold"), foreground="#ffffff", background="#2563eb")
+        self.estilo.configure("Success.TButton", font=("Segoe UI", 9, "bold"), foreground="#ffffff", background="#16a34a")
+        self.estilo.configure("Danger.TButton", font=("Segoe UI", 9, "bold"), foreground="#ffffff", background="#dc2626")
         try:
-            self.style.map("Success.TButton",
+            self.estilo.map("Success.TButton",
                 foreground=[('pressed', '#ffffff'), ('active', '#ffffff')],
                 background=[('pressed', '#15803d'), ('active', '#22c55e')]
             )
-            self.style.map("Accent.TButton",
+            self.estilo.map("Accent.TButton",
                 foreground=[('pressed', '#ffffff'), ('active', '#ffffff')],
                 background=[('pressed', '#1d4ed8'), ('active', '#3b82f6')]
             )
         except Exception:
             pass
 
-    def build_ui(self):
-        top_bar = ttk.Frame(self.root, padding="10 8")
-        top_bar.pack(fill=tk.X)
+    def construir_interfaz(self):
+        self.barra_superior = ttk.Frame(self.raiz, padding="10 8")
+        self.barra_superior.pack(fill=tk.X)
 
-        ttk.Label(top_bar, text="Máquina de Turing:", font=("Segoe UI", 12, "bold")).pack(side=tk.LEFT, padx=(0, 8))
-        self.lbl_machine_title = ttk.Label(top_bar, text=self.tm.name, font=("Segoe UI", 11, "italic"), foreground="#2563eb")
-        self.lbl_machine_title.pack(side=tk.LEFT, padx=(0, 15))
+        ttk.Label(self.barra_superior, text="Máquina de Turing:", font=("Segoe UI", 12, "bold")).pack(side=tk.LEFT, padx=(0, 8))
+        self.etiqueta_titulo_mt = ttk.Label(self.barra_superior, text=self.mt.nombre, font=("Segoe UI", 11, "italic"), foreground="#2563eb")
+        self.etiqueta_titulo_mt.pack(side=tk.LEFT, padx=(0, 15))
 
-        btn_new_machine = ttk.Button(top_bar, text="Nuevo en Blanco", command=self.new_blank_machine)
-        btn_new_machine.pack(side=tk.LEFT, padx=(0, 12))
+        self.boton_nueva_maquina = ttk.Button(self.barra_superior, text="Nuevo en Blanco", command=self.nueva_maquina_en_blanco)
+        self.boton_nueva_maquina.pack(side=tk.LEFT, padx=(0, 12))
 
-        ttk.Label(top_bar, text="Cargar Ejemplo:", font=("Segoe UI", 9)).pack(side=tk.LEFT, padx=(5, 4))
-        self.combo_examples = ttk.Combobox(top_bar, values=["[En blanco]"] + list(AVAILABLE_EXAMPLES.keys()), state="readonly", width=24)
-        self.combo_examples.set("a^n b^n (n >= 1)")
-        self.combo_examples.pack(side=tk.LEFT, padx=(0, 10))
-        self.combo_examples.bind("<<ComboboxSelected>>", self.on_example_selected)
-
-        btn_save_json = ttk.Button(top_bar, text="Guardar JSON", command=self.save_to_json)
-        btn_save_json.pack(side=tk.RIGHT, padx=4)
-
-        btn_load_json = ttk.Button(top_bar, text="Cargar JSON", command=self.load_from_json)
-        btn_load_json.pack(side=tk.RIGHT, padx=4)
-
-        btn_generate_top = ttk.Button(top_bar, text="Generar Autómata", style="Success.TButton", command=self.generate_automaton_action)
-        btn_generate_top.pack(side=tk.RIGHT, padx=6)
-
-        self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 5))
-
-        self.tab_definition = ttk.Frame(self.notebook, padding=10)
-        self.notebook.add(self.tab_definition, text="1. Definición y Transiciones")
-        self.build_definition_tab()
-
-        self.tab_simulation = ttk.Frame(self.notebook, padding=10)
-        self.notebook.add(self.tab_simulation, text="2. Simulador de Cinta")
-        self.build_simulation_tab()
-
-        self.tab_graph = ttk.Frame(self.notebook, padding=10)
-        self.notebook.add(self.tab_graph, text="3. Diagrama del Autómata")
-        self.build_graph_tab()
-
-        self.status_bar = ttk.Label(self.root, text="Listo.", relief=tk.SUNKEN, anchor=tk.W, padding=(8, 4))
-        self.status_bar.pack(fill=tk.X, side=tk.BOTTOM)
-
-    def build_definition_tab(self):
-        left_pane = ttk.LabelFrame(self.tab_definition, text="Formalismo M = (Q, Σ, Γ, δ, q0, B, F)", padding=10)
-        left_pane.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
-
-        ttk.Label(left_pane, text="Nombre:").grid(row=0, column=0, sticky=tk.W, pady=3)
-        self.entry_name = ttk.Entry(left_pane, width=32)
-        self.entry_name.grid(row=0, column=1, sticky=tk.W, pady=3)
-
-        ttk.Label(left_pane, text="Alfabeto Entrada Σ:").grid(row=1, column=0, sticky=tk.W, pady=3)
-        self.entry_sigma = ttk.Entry(left_pane, width=32)
-        self.entry_sigma.grid(row=1, column=1, sticky=tk.W, pady=3)
-
-        ttk.Label(left_pane, text="Símbolo Blanco (B):").grid(row=2, column=0, sticky=tk.W, pady=3)
-        self.entry_blank = ttk.Entry(left_pane, width=10)
-        self.entry_blank.grid(row=2, column=1, sticky=tk.W, pady=3)
-
-        ttk.Label(left_pane, text="Alfabeto Cinta Γ:").grid(row=3, column=0, sticky=tk.W, pady=3)
-        self.entry_gamma = ttk.Entry(left_pane, width=32)
-        self.entry_gamma.grid(row=3, column=1, sticky=tk.W, pady=3)
-
-        ttk.Label(left_pane, text="Estados Q:").grid(row=4, column=0, sticky=tk.W, pady=3)
-        self.entry_states = ttk.Entry(left_pane, width=32)
-        self.entry_states.grid(row=4, column=1, sticky=tk.W, pady=3)
-
-        ttk.Label(left_pane, text="Estado Inicial (q0):").grid(row=5, column=0, sticky=tk.W, pady=3)
-        self.entry_init_state = ttk.Entry(left_pane, width=15)
-        self.entry_init_state.grid(row=5, column=1, sticky=tk.W, pady=3)
-
-        ttk.Label(left_pane, text="Estados Aceptación (F):").grid(row=6, column=0, sticky=tk.W, pady=3)
-        self.entry_accept_states = ttk.Entry(left_pane, width=32)
-        self.entry_accept_states.grid(row=6, column=1, sticky=tk.W, pady=3)
-
-        ttk.Label(left_pane, text="Estados Rechazo:").grid(row=7, column=0, sticky=tk.W, pady=3)
-        self.entry_reject_states = ttk.Entry(left_pane, width=32)
-        self.entry_reject_states.grid(row=7, column=1, sticky=tk.W, pady=3)
-
-        btn_apply_def = ttk.Button(left_pane, text="Actualizar Parámetros", command=self.apply_definition_inputs)
-        btn_apply_def.grid(row=8, column=0, columnspan=2, pady=(14, 4), sticky=tk.EW)
-
-        btn_regen_from_left = ttk.Button(left_pane, text="Reconstruir Cuadrícula", command=self.rebuild_matrix_grid)
-        btn_regen_from_left.grid(row=9, column=0, columnspan=2, pady=4, sticky=tk.EW)
-
-        btn_validate = ttk.Button(left_pane, text="Validar Autómata", command=self.validate_machine)
-        btn_validate.grid(row=10, column=0, columnspan=2, pady=4, sticky=tk.EW)
-
-        btn_gen_left = ttk.Button(left_pane, text="Generar Autómata", style="Success.TButton", command=self.generate_automaton_action)
-        btn_gen_left.grid(row=11, column=0, columnspan=2, pady=(12, 4), sticky=tk.EW)
-
-        right_pane = ttk.LabelFrame(self.tab_definition, text="Función y Tabla de Transiciones δ", padding=8)
-        right_pane.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
-
-        trans_toolbar = ttk.Frame(right_pane)
-        trans_toolbar.pack(fill=tk.X, pady=(0, 6))
-
-        btn_gen_main = ttk.Button(trans_toolbar, text="Generar Autómata", style="Success.TButton", command=self.generate_automaton_action)
-        btn_gen_main.pack(side=tk.LEFT, padx=(0, 6))
-
-        btn_regen_grid = ttk.Button(trans_toolbar, text="Regenerar Cuadrícula", command=self.rebuild_matrix_grid)
-        btn_regen_grid.pack(side=tk.LEFT, padx=4)
-
-        btn_export_csv = ttk.Button(trans_toolbar, text="Exportar Tabla a CSV", command=self.export_matrix_to_csv)
-        btn_export_csv.pack(side=tk.LEFT, padx=4)
-
-        self.lbl_trans_count = ttk.Label(trans_toolbar, text="Total: 0 transiciones", font=("Segoe UI", 9, "italic"))
-        self.lbl_trans_count.pack(side=tk.RIGHT, padx=4)
-
-        self.trans_notebook = ttk.Notebook(right_pane)
-        self.trans_notebook.pack(fill=tk.BOTH, expand=True)
-
-        self.tab_matrix = ttk.Frame(self.trans_notebook, padding=6)
-        self.trans_notebook.add(self.tab_matrix, text="Matriz 2D")
-        self.build_matrix_tab()
-
-        self.tab_text_import = ttk.Frame(self.trans_notebook, padding=6)
-        self.trans_notebook.add(self.tab_text_import, text="Pegar / Importar Texto")
-        self.build_text_import_tab()
-
-        self.tab_list = ttk.Frame(self.trans_notebook, padding=6)
-        self.trans_notebook.add(self.tab_list, text="Vista en Lista")
-        self.build_list_tab()
-
-    def build_matrix_tab(self):
-        grid_container = ttk.Frame(self.tab_matrix)
-        grid_container.pack(fill=tk.BOTH, expand=True)
-
-        self.matrix_canvas = tk.Canvas(grid_container, bg="#ffffff", highlightthickness=1, highlightbackground="#cbd5e1")
-        v_scroll = ttk.Scrollbar(grid_container, orient=tk.VERTICAL, command=self.matrix_canvas.yview)
-        h_scroll = ttk.Scrollbar(grid_container, orient=tk.HORIZONTAL, command=self.matrix_canvas.xview)
-
-        self.matrix_inner_frame = ttk.Frame(self.matrix_canvas)
-        self.matrix_inner_frame.bind(
-            "<Configure>",
-            lambda e: self.matrix_canvas.configure(scrollregion=self.matrix_canvas.bbox("all"))
+        ttk.Label(self.barra_superior, text="Cargar Ejemplo:", font=("Segoe UI", 9)).pack(side=tk.LEFT, padx=(5, 4))
+        self.desplegable_ejemplos = ttk.Combobox(
+            self.barra_superior,
+            values=["[En blanco]"] + list(EJEMPLOS_DISPONIBLES.keys()),
+            state="readonly",
+            width=24
         )
-        self.matrix_window_id = self.matrix_canvas.create_window((0, 0), window=self.matrix_inner_frame, anchor="nw")
+        self.desplegable_ejemplos.set("a^n b^n (n >= 1)")
+        self.desplegable_ejemplos.pack(side=tk.LEFT, padx=(0, 10))
+        self.desplegable_ejemplos.bind("<<ComboboxSelected>>", self.al_seleccionar_ejemplo)
 
-        self.matrix_canvas.configure(xscrollcommand=h_scroll.set, yscrollcommand=v_scroll.set)
+        self.boton_guardar_json = ttk.Button(self.barra_superior, text="Guardar JSON", command=self.guardar_en_json)
+        self.boton_guardar_json.pack(side=tk.RIGHT, padx=4)
 
-        self.matrix_canvas.grid(row=0, column=0, sticky="nsew")
-        v_scroll.grid(row=0, column=1, sticky="ns")
-        h_scroll.grid(row=1, column=0, sticky="ew")
+        self.boton_cargar_json = ttk.Button(self.barra_superior, text="Cargar JSON", command=self.cargar_desde_json)
+        self.boton_cargar_json.pack(side=tk.RIGHT, padx=4)
 
-        grid_container.grid_rowconfigure(0, weight=1)
-        grid_container.grid_columnconfigure(0, weight=1)
+        self.boton_generar_superior = ttk.Button(
+            self.barra_superior,
+            text="Generar Autómata",
+            style="Success.TButton",
+            command=self.accion_generar_automata
+        )
+        self.boton_generar_superior.pack(side=tk.RIGHT, padx=6)
 
-        matrix_bottom = ttk.Frame(self.tab_matrix)
-        matrix_bottom.pack(fill=tk.X, pady=(6, 0))
+        self.panel_pestanas = ttk.Notebook(self.raiz)
+        self.panel_pestanas.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 5))
 
-        btn_apply_matrix = ttk.Button(matrix_bottom, text="Guardar Cambios de la Matriz", command=self.apply_matrix_changes)
-        btn_apply_matrix.pack(side=tk.LEFT, padx=4)
+        self.pestana_definicion = ttk.Frame(self.panel_pestanas, padding=10)
+        self.panel_pestanas.add(self.pestana_definicion, text="1. Definición y Transiciones")
+        self.construir_pestana_definicion()
 
-        btn_gen_from_matrix = ttk.Button(matrix_bottom, text="Generar Autómata", style="Accent.TButton", command=self.generate_automaton_action)
-        btn_gen_from_matrix.pack(side=tk.LEFT, padx=4)
+        self.pestana_simulacion = ttk.Frame(self.panel_pestanas, padding=10)
+        self.panel_pestanas.add(self.pestana_simulacion, text="2. Simulador de Cinta")
+        self.construir_pestana_simulacion()
 
-        btn_clear_matrix = ttk.Button(matrix_bottom, text="Limpiar Celdas", command=self.clear_matrix_cells)
-        btn_clear_matrix.pack(side=tk.RIGHT, padx=4)
+        self.pestana_grafo = ttk.Frame(self.panel_pestanas, padding=10)
+        self.panel_pestanas.add(self.pestana_grafo, text="3. Diagrama del Autómata")
+        self.construir_pestana_grafo()
 
-    def rebuild_matrix_grid(self):
-        for widget in self.matrix_inner_frame.winfo_children():
-            widget.destroy()
+        self.barra_estado = ttk.Label(self.raiz, text="Listo.", relief=tk.SUNKEN, anchor=tk.W, padding=(8, 4))
+        self.barra_estado.pack(fill=tk.X, side=tk.BOTTOM)
 
-        self.matrix_entries = {}
+    def construir_pestana_definicion(self):
+        panel_izquierdo = ttk.LabelFrame(self.pestana_definicion, text="Formalismo M = (Q, Σ, Γ, δ, q0, B, F)", padding=10)
+        panel_izquierdo.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
 
-        raw_states_str = self.entry_states.get().strip() if hasattr(self, 'entry_states') else ""
-        if raw_states_str:
-            states_list = [s.strip() for s in raw_states_str.split(",") if s.strip()]
+        ttk.Label(panel_izquierdo, text="Nombre:").grid(row=0, column=0, sticky=tk.W, pady=3)
+        self.entrada_nombre = ttk.Entry(panel_izquierdo, width=32)
+        self.entrada_nombre.grid(row=0, column=1, sticky=tk.W, pady=3)
+
+        ttk.Label(panel_izquierdo, text="Alfabeto Entrada Σ:").grid(row=1, column=0, sticky=tk.W, pady=3)
+        self.entrada_sigma = ttk.Entry(panel_izquierdo, width=32)
+        self.entrada_sigma.grid(row=1, column=1, sticky=tk.W, pady=3)
+
+        ttk.Label(panel_izquierdo, text="Símbolo Blanco (B):").grid(row=2, column=0, sticky=tk.W, pady=3)
+        self.entrada_blanco = ttk.Entry(panel_izquierdo, width=10)
+        self.entrada_blanco.grid(row=2, column=1, sticky=tk.W, pady=3)
+
+        ttk.Label(panel_izquierdo, text="Alfabeto Cinta Γ:").grid(row=3, column=0, sticky=tk.W, pady=3)
+        self.entrada_gamma = ttk.Entry(panel_izquierdo, width=32)
+        self.entrada_gamma.grid(row=3, column=1, sticky=tk.W, pady=3)
+
+        ttk.Label(panel_izquierdo, text="Estados Q:").grid(row=4, column=0, sticky=tk.W, pady=3)
+        self.entrada_estados = ttk.Entry(panel_izquierdo, width=32)
+        self.entrada_estados.grid(row=4, column=1, sticky=tk.W, pady=3)
+
+        ttk.Label(panel_izquierdo, text="Estado Inicial (q0):").grid(row=5, column=0, sticky=tk.W, pady=3)
+        self.entrada_estado_inicial = ttk.Entry(panel_izquierdo, width=15)
+        self.entrada_estado_inicial.grid(row=5, column=1, sticky=tk.W, pady=3)
+
+        ttk.Label(panel_izquierdo, text="Estados Aceptación (F):").grid(row=6, column=0, sticky=tk.W, pady=3)
+        self.entrada_estados_aceptacion = ttk.Entry(panel_izquierdo, width=32)
+        self.entrada_estados_aceptacion.grid(row=6, column=1, sticky=tk.W, pady=3)
+
+        ttk.Label(panel_izquierdo, text="Estados Rechazo:").grid(row=7, column=0, sticky=tk.W, pady=3)
+        self.entrada_estados_rechazo = ttk.Entry(panel_izquierdo, width=32)
+        self.entrada_estados_rechazo.grid(row=7, column=1, sticky=tk.W, pady=3)
+
+        boton_aplicar_def = ttk.Button(panel_izquierdo, text="Actualizar Parámetros", command=self.aplicar_entradas_definicion)
+        boton_aplicar_def.grid(row=8, column=0, columnspan=2, pady=(14, 4), sticky=tk.EW)
+
+        boton_regen_izq = ttk.Button(panel_izquierdo, text="Reconstruir Cuadrícula", command=self.reconstruir_cuadricula_matriz)
+        boton_regen_izq.grid(row=9, column=0, columnspan=2, pady=4, sticky=tk.EW)
+
+        boton_validar = ttk.Button(panel_izquierdo, text="Validar Autómata", command=self.validar_maquina)
+        boton_validar.grid(row=10, column=0, columnspan=2, pady=4, sticky=tk.EW)
+
+        boton_gen_izq = ttk.Button(panel_izquierdo, text="Generar Autómata", style="Success.TButton", command=self.accion_generar_automata)
+        boton_gen_izq.grid(row=11, column=0, columnspan=2, pady=(12, 4), sticky=tk.EW)
+
+        panel_derecho = ttk.LabelFrame(self.pestana_definicion, text="Función y Tabla de Transiciones δ", padding=8)
+        panel_derecho.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+        barra_herramientas_trans = ttk.Frame(panel_derecho)
+        barra_herramientas_trans.pack(fill=tk.X, pady=(0, 6))
+
+        boton_gen_principal = ttk.Button(
+            barra_herramientas_trans,
+            text="Generar Autómata",
+            style="Success.TButton",
+            command=self.accion_generar_automata
+        )
+        boton_gen_principal.pack(side=tk.LEFT, padx=(0, 6))
+
+        boton_regen_cuadricula = ttk.Button(barra_herramientas_trans, text="Regenerar Cuadrícula", command=self.reconstruir_cuadricula_matriz)
+        boton_regen_cuadricula.pack(side=tk.LEFT, padx=4)
+
+        boton_exportar_csv = ttk.Button(barra_herramientas_trans, text="Exportar Tabla a CSV", command=self.exportar_matriz_a_csv)
+        boton_exportar_csv.pack(side=tk.LEFT, padx=4)
+
+        self.etiqueta_conteo_trans = ttk.Label(barra_herramientas_trans, text="Total: 0 transiciones", font=("Segoe UI", 9, "italic"))
+        self.etiqueta_conteo_trans.pack(side=tk.RIGHT, padx=4)
+
+        self.panel_transiciones = ttk.Notebook(panel_derecho)
+        self.panel_transiciones.pack(fill=tk.BOTH, expand=True)
+
+        self.pestana_matriz = ttk.Frame(self.panel_transiciones, padding=6)
+        self.panel_transiciones.add(self.pestana_matriz, text="Matriz 2D")
+        self.construir_pestana_matriz()
+
+        self.pestana_importar_texto = ttk.Frame(self.panel_transiciones, padding=6)
+        self.panel_transiciones.add(self.pestana_importar_texto, text="Pegar / Importar Texto")
+        self.construir_pestana_importacion_texto()
+
+        self.pestana_lista = ttk.Frame(self.panel_transiciones, padding=6)
+        self.panel_transiciones.add(self.pestana_lista, text="Vista en Lista")
+        self.construir_pestana_lista()
+
+    def construir_pestana_matriz(self):
+        contenedor_cuadricula = ttk.Frame(self.pestana_matriz)
+        contenedor_cuadricula.pack(fill=tk.BOTH, expand=True)
+
+        self.lienzo_matriz = tk.Canvas(contenedor_cuadricula, bg="#ffffff", highlightthickness=1, highlightbackground="#cbd5e1")
+        desplazamiento_v = ttk.Scrollbar(contenedor_cuadricula, orient=tk.VERTICAL, command=self.lienzo_matriz.yview)
+        desplazamiento_h = ttk.Scrollbar(contenedor_cuadricula, orient=tk.HORIZONTAL, command=self.lienzo_matriz.xview)
+
+        self.marco_interno_matriz = ttk.Frame(self.lienzo_matriz)
+        self.marco_interno_matriz.bind(
+            "<Configure>",
+            lambda e: self.lienzo_matriz.configure(scrollregion=self.lienzo_matriz.bbox("all"))
+        )
+        self.id_ventana_matriz = self.lienzo_matriz.create_window((0, 0), window=self.marco_interno_matriz, anchor="nw")
+
+        self.lienzo_matriz.configure(xscrollcommand=desplazamiento_h.set, yscrollcommand=desplazamiento_v.set)
+
+        self.lienzo_matriz.grid(row=0, column=0, sticky="nsew")
+        desplazamiento_v.grid(row=0, column=1, sticky="ns")
+        desplazamiento_h.grid(row=1, column=0, sticky="ew")
+
+        contenedor_cuadricula.grid_rowconfigure(0, weight=1)
+        contenedor_cuadricula.grid_columnconfigure(0, weight=1)
+
+        panel_inferior_matriz = ttk.Frame(self.pestana_matriz)
+        panel_inferior_matriz.pack(fill=tk.X, pady=(6, 0))
+
+        boton_aplicar_matriz = ttk.Button(panel_inferior_matriz, text="Guardar Cambios de la Matriz", command=self.aplicar_cambios_matriz)
+        boton_aplicar_matriz.pack(side=tk.LEFT, padx=4)
+
+        boton_gen_desde_matriz = ttk.Button(
+            panel_inferior_matriz,
+            text="Generar Autómata",
+            style="Accent.TButton",
+            command=self.accion_generar_automata
+        )
+        boton_gen_desde_matriz.pack(side=tk.LEFT, padx=4)
+
+        boton_limpiar_matriz = ttk.Button(panel_inferior_matriz, text="Limpiar Celdas", command=self.limpiar_celdas_matriz)
+        boton_limpiar_matriz.pack(side=tk.RIGHT, padx=4)
+
+    def reconstruir_cuadricula_matriz(self):
+        for elemento in self.marco_interno_matriz.winfo_children():
+            elemento.destroy()
+
+        self.entradas_matriz = {}
+
+        cadena_estados_bruta = self.entrada_estados.get().strip() if hasattr(self, 'entrada_estados') else ""
+        if cadena_estados_bruta:
+            lista_estados = [s.strip() for s in cadena_estados_bruta.split(",") if s.strip()]
         else:
-            states_list = sorted(list(self.tm.states))
+            lista_estados = sorted(list(self.mt.estados))
 
-        init_st = self.entry_init_state.get().strip() or self.tm.initial_state
-        if init_st in states_list:
-            states_list.remove(init_st)
-            states_list = [init_st] + states_list
-        elif init_st:
-            states_list = [init_st] + states_list
+        estado_ini = self.entrada_estado_inicial.get().strip() or self.mt.estado_inicial
+        if estado_ini in lista_estados:
+            lista_estados.remove(estado_ini)
+            lista_estados = [estado_ini] + lista_estados
+        elif estado_ini:
+            lista_estados = [estado_ini] + lista_estados
 
-        raw_sigma_str = self.entry_sigma.get().strip() if hasattr(self, 'entry_sigma') else ""
-        raw_gamma_str = self.entry_gamma.get().strip() if hasattr(self, 'entry_gamma') else ""
-        blank = self.entry_blank.get().strip() if hasattr(self, 'entry_blank') else self.tm.blank_symbol
+        cadena_sigma_bruta = self.entrada_sigma.get().strip() if hasattr(self, 'entrada_sigma') else ""
+        cadena_gamma_bruta = self.entrada_gamma.get().strip() if hasattr(self, 'entrada_gamma') else ""
+        blanco = self.entrada_blanco.get().strip() if hasattr(self, 'entrada_blanco') else self.mt.simbolo_blanco
 
-        sigma_symbols = [s.strip() for s in raw_sigma_str.split(",") if s.strip()] if raw_sigma_str else sorted(list(self.tm.input_alphabet))
-        gamma_symbols = [s.strip() for s in raw_gamma_str.split(",") if s.strip()] if raw_gamma_str else sorted(list(self.tm.tape_alphabet))
+        simbolos_sigma = [s.strip() for s in cadena_sigma_bruta.split(",") if s.strip()] if cadena_sigma_bruta else sorted(list(self.mt.alfabeto_entrada))
+        simbolos_gamma = [s.strip() for s in cadena_gamma_bruta.split(",") if s.strip()] if cadena_gamma_bruta else sorted(list(self.mt.alfabeto_cinta))
 
-        symbols_list = []
-        for s in sigma_symbols:
-            if s not in symbols_list and s != blank:
-                symbols_list.append(s)
-        for s in gamma_symbols:
-            if s not in symbols_list and s != blank:
-                symbols_list.append(s)
-        if blank and blank not in symbols_list:
-            symbols_list.append(blank)
+        lista_simbolos = []
+        for s in simbolos_sigma:
+            if s not in lista_simbolos and s != blanco:
+                lista_simbolos.append(s)
+        for s in simbolos_gamma:
+            if s not in lista_simbolos and s != blanco:
+                lista_simbolos.append(s)
+        if blanco and blanco not in lista_simbolos:
+            lista_simbolos.append(blanco)
 
-        if not symbols_list:
-            symbols_list = ["0", "1", "B"]
+        if not lista_simbolos:
+            lista_simbolos = ["0", "1", "B"]
 
-        lbl_corner = tk.Label(
-            self.matrix_inner_frame,
+        etiqueta_esquina = tk.Label(
+            self.marco_interno_matriz,
             text="Estado \\ Símbolo",
             font=("Segoe UI", 9, "bold"),
             bg="#e2e8f0",
@@ -272,139 +296,148 @@ class TuringMachineGUI:
             pady=6,
             relief=tk.RIDGE
         )
-        lbl_corner.grid(row=0, column=0, sticky="nsew", padx=1, pady=1)
+        etiqueta_esquina.grid(row=0, column=0, sticky="nsew", padx=1, pady=1)
 
-        for col_idx, sym in enumerate(symbols_list, start=1):
-            lbl_sym = tk.Label(
-                self.matrix_inner_frame,
+        for col_idx, sym in enumerate(lista_simbolos, start=1):
+            etiqueta_sim = tk.Label(
+                self.marco_interno_matriz,
                 text=f"'{sym}'",
                 font=("Consolas", 10, "bold"),
                 bg="#f1f5f9",
-                fg="#2563eb" if sym in sigma_symbols else "#475569",
+                fg="#2563eb" if sym in simbolos_sigma else "#475569",
                 padx=8,
                 pady=6,
                 relief=tk.RIDGE,
                 width=16
             )
-            lbl_sym.grid(row=0, column=col_idx, sticky="nsew", padx=1, pady=1)
+            etiqueta_sim.grid(row=0, column=col_idx, sticky="nsew", padx=1, pady=1)
 
-        accept_states = {s.strip() for s in self.entry_accept_states.get().split(",") if s.strip()} if hasattr(self, 'entry_accept_states') else self.tm.accept_states
-        reject_states = {s.strip() for s in self.entry_reject_states.get().split(",") if s.strip()} if hasattr(self, 'entry_reject_states') else self.tm.reject_states
+        estados_aceptacion = {s.strip() for s in self.entrada_estados_aceptacion.get().split(",") if s.strip()} if hasattr(self, 'entrada_estados_aceptacion') else self.mt.estados_aceptacion
+        estados_rechazo = {s.strip() for s in self.entrada_estados_rechazo.get().split(",") if s.strip()} if hasattr(self, 'entrada_estados_rechazo') else self.mt.estados_rechazo
 
-        for row_idx, st in enumerate(states_list, start=1):
-            bg_st = "#f8fafc"
-            fg_st = "#0f172a"
-            if st == init_st:
-                bg_st = "#e0f2fe"
-                fg_st = "#0369a1"
-            elif st in accept_states:
-                bg_st = "#dcfce7"
-                fg_st = "#15803d"
-            elif st in reject_states:
-                bg_st = "#fee2e2"
-                fg_st = "#b91c1c"
+        for fila_idx, st in enumerate(lista_estados, start=1):
+            fondo_st = "#f8fafc"
+            texto_st = "#0f172a"
+            if st == estado_ini:
+                fondo_st = "#e0f2fe"
+                texto_st = "#0369a1"
+            elif st in estados_aceptacion:
+                fondo_st = "#dcfce7"
+                texto_st = "#15803d"
+            elif st in estados_rechazo:
+                fondo_st = "#fee2e2"
+                texto_st = "#b91c1c"
 
-            lbl_st = tk.Label(
-                self.matrix_inner_frame,
+            etiqueta_st = tk.Label(
+                self.marco_interno_matriz,
                 text=st,
                 font=("Segoe UI", 9, "bold"),
-                bg=bg_st,
-                fg=fg_st,
+                bg=fondo_st,
+                fg=texto_st,
                 padx=8,
                 pady=4,
                 relief=tk.RIDGE,
                 anchor="center",
                 width=12
             )
-            lbl_st.grid(row=row_idx, column=0, sticky="nsew", padx=1, pady=1)
+            etiqueta_st.grid(row=fila_idx, column=0, sticky="nsew", padx=1, pady=1)
 
-            for col_idx, sym in enumerate(symbols_list, start=1):
-                ent = ttk.Entry(self.matrix_inner_frame, font=("Consolas", 9), width=16, justify=tk.CENTER)
-                ent.grid(row=row_idx, column=col_idx, sticky="nsew", padx=1, pady=1)
+            for col_idx, sym in enumerate(lista_simbolos, start=1):
+                entrada_celda = ttk.Entry(self.marco_interno_matriz, font=("Consolas", 9), width=16, justify=tk.CENTER)
+                entrada_celda.grid(row=fila_idx, column=col_idx, sticky="nsew", padx=1, pady=1)
 
-                key = TransitionKey(st, sym)
-                if key in self.tm.transitions:
-                    val = self.tm.transitions[key]
-                    ent.insert(0, f"({val.next_state}, {val.write_symbol}, {val.direction.value})")
+                clave = ClaveTransicion(st, sym)
+                if clave in self.mt.transiciones:
+                    valor = self.mt.transiciones[clave]
+                    entrada_celda.insert(0, f"({valor.nuevo_estado}, {valor.simbolo_escrito}, {valor.direccion.value})")
 
-                self.matrix_entries[(st, sym)] = ent
+                self.entradas_matriz[(st, sym)] = entrada_celda
 
-        self.matrix_inner_frame.update_idletasks()
-        self.matrix_canvas.configure(scrollregion=self.matrix_canvas.bbox("all"))
+        self.marco_interno_matriz.update_idletasks()
+        self.lienzo_matriz.configure(scrollregion=self.lienzo_matriz.bbox("all"))
 
-    def apply_matrix_changes(self, show_msg: bool = True) -> bool:
-        if not hasattr(self, 'matrix_entries') or not self.matrix_entries:
+    def aplicar_cambios_matriz(self, mostrar_mensaje: bool = True) -> bool:
+        if not hasattr(self, 'entradas_matriz') or not self.entradas_matriz:
             return True
 
-        matrix_dict = {}
-        for (st, sym), ent in self.matrix_entries.items():
-            val = ent.get().strip()
-            if val:
-                matrix_dict[(st, sym)] = val
+        diccionario_matriz = {}
+        for (st, sym), entrada_celda in self.entradas_matriz.items():
+            valor = entrada_celda.get().strip()
+            if valor:
+                diccionario_matriz[(st, sym)] = valor
 
-        added, errors = self.tm.set_matrix_transitions(matrix_dict, clear_existing=True)
-        self.refresh_transitions_table()
-        self.recalculate_graph_layout()
+        agregadas, errores = self.mt.establecer_transiciones_matriz(diccionario_matriz, limpiar_existentes=True)
+        self.actualizar_tabla_transiciones()
+        self.recalcular_distribucion_grafo()
 
-        if errors:
-            err_text = "\n".join(errors[:5])
-            if len(errors) > 5:
-                err_text += f"\n...y {len(errors) - 5} advertencias más."
-            messagebox.showwarning("Advertencias en Celdas", f"Se aplicaron {added} transiciones, pero hubo observaciones:\n\n{err_text}")
+        if errores:
+            texto_errores = "\n".join(errores[:5])
+            if len(errores) > 5:
+                texto_errores += f"\n...y {len(errores) - 5} advertencias más."
+            messagebox.showwarning("Advertencias en Celdas", f"Se aplicaron {agregadas} transiciones, pero hubo observaciones:\n\n{texto_errores}")
             return False
 
-        if show_msg:
-            messagebox.showinfo("Matriz Aplicada", f"Se actualizaron exitosamente {added} transiciones.")
-        self.status_bar.config(text=f"Matriz actualizada: {added} transiciones.")
+        if mostrar_mensaje:
+            messagebox.showinfo("Matriz Aplicada", f"Se actualizaron exitosamente {agregadas} transiciones.")
+        self.barra_estado.config(text=f"Matriz actualizada: {agregadas} transiciones.")
         return True
 
-    def clear_matrix_cells(self):
+    def limpiar_celdas_matriz(self):
         if messagebox.askyesno("Confirmar Limpieza", "¿Deseas borrar el contenido de todas las celdas de la matriz?"):
-            for ent in self.matrix_entries.values():
-                ent.delete(0, tk.END)
+            for entrada in self.entradas_matriz.values():
+                entrada.delete(0, tk.END)
 
-    def build_text_import_tab(self):
-        top_ctrl = ttk.Frame(self.tab_text_import)
-        top_ctrl.pack(fill=tk.X, pady=(0, 6))
+    def construir_pestana_importacion_texto(self):
+        control_superior = ttk.Frame(self.pestana_importar_texto)
+        control_superior.pack(fill=tk.X, pady=(0, 6))
 
-        ttk.Label(top_ctrl, text="Tabla de transiciones (CSV o lista):", font=("Segoe UI", 9)).pack(side=tk.LEFT)
+        ttk.Label(control_superior, text="Tabla de transiciones (CSV o lista):", font=("Segoe UI", 9)).pack(side=tk.LEFT)
 
-        btn_template_csv = ttk.Button(top_ctrl, text="Plantilla Matriz CSV", command=self.insert_csv_template)
-        btn_template_csv.pack(side=tk.RIGHT, padx=4)
+        boton_plantilla_csv = ttk.Button(control_superior, text="Plantilla Matriz CSV", command=self.insertar_plantilla_csv)
+        boton_plantilla_csv.pack(side=tk.RIGHT, padx=4)
 
-        btn_template_list = ttk.Button(top_ctrl, text="Plantilla Lista", command=self.insert_list_template)
-        btn_template_list.pack(side=tk.RIGHT, padx=4)
+        boton_plantilla_lista = ttk.Button(control_superior, text="Plantilla Lista", command=self.insertar_plantilla_lista)
+        boton_plantilla_lista.pack(side=tk.RIGHT, padx=4)
 
-        btn_file_load = ttk.Button(top_ctrl, text="Cargar Archivo", command=self.load_text_file)
-        btn_file_load.pack(side=tk.RIGHT, padx=4)
+        boton_cargar_archivo = ttk.Button(control_superior, text="Cargar Archivo", command=self.cargar_archivo_texto)
+        boton_cargar_archivo.pack(side=tk.RIGHT, padx=4)
 
-        self.txt_bulk_import = scrolledtext.ScrolledText(self.tab_text_import, height=12, font=("Consolas", 10), wrap=tk.NONE)
-        self.txt_bulk_import.pack(fill=tk.BOTH, expand=True, pady=(0, 6))
+        self.texto_importacion_masiva = scrolledtext.ScrolledText(self.pestana_importar_texto, height=12, font=("Consolas", 10), wrap=tk.NONE)
+        self.texto_importacion_masiva.pack(fill=tk.BOTH, expand=True, pady=(0, 6))
 
-        bottom_ctrl = ttk.Frame(self.tab_text_import)
-        bottom_ctrl.pack(fill=tk.X)
+        control_inferior = ttk.Frame(self.pestana_importar_texto)
+        control_inferior.pack(fill=tk.X)
 
-        btn_process = ttk.Button(bottom_ctrl, text="Procesar Texto", command=self.process_text_import)
-        btn_process.pack(side=tk.LEFT, padx=4)
+        boton_procesar = ttk.Button(control_inferior, text="Procesar Texto", command=self.procesar_importacion_texto)
+        boton_procesar.pack(side=tk.LEFT, padx=4)
 
-        btn_process_and_gen = ttk.Button(bottom_ctrl, text="Procesar y Generar", style="Success.TButton", command=self.generate_from_text_action)
-        btn_process_and_gen.pack(side=tk.LEFT, padx=4)
+        boton_procesar_y_generar = ttk.Button(
+            control_inferior,
+            text="Procesar y Generar",
+            style="Success.TButton",
+            command=self.accion_generar_desde_texto
+        )
+        boton_procesar_y_generar.pack(side=tk.LEFT, padx=4)
 
-        btn_clear_text = ttk.Button(bottom_ctrl, text="Limpiar Texto", command=lambda: self.txt_bulk_import.delete("1.0", tk.END))
-        btn_clear_text.pack(side=tk.RIGHT, padx=4)
+        boton_limpiar_texto = ttk.Button(
+            control_inferior,
+            text="Limpiar Texto",
+            command=lambda: self.texto_importacion_masiva.delete("1.0", tk.END)
+        )
+        boton_limpiar_texto.pack(side=tk.RIGHT, padx=4)
 
-    def insert_csv_template(self):
-        sample = (
+    def insertar_plantilla_csv(self):
+        muestra = (
             "Estado, 0, 1, B\n"
             "q0, (q0, 0, R), (q0, 1, R), (q1, B, L)\n"
             "q1, (q_accept, 1, S), (q1, 0, L), (q_accept, 1, S)\n"
             "q_accept, , , \n"
         )
-        self.txt_bulk_import.delete("1.0", tk.END)
-        self.txt_bulk_import.insert(tk.END, sample)
+        self.texto_importacion_masiva.delete("1.0", tk.END)
+        self.texto_importacion_masiva.insert(tk.END, muestra)
 
-    def insert_list_template(self):
-        sample = (
+    def insertar_plantilla_lista(self):
+        muestra = (
             "q0 0 q0 0 R\n"
             "q0 1 q0 1 R\n"
             "q0 B q1 B L\n"
@@ -412,161 +445,161 @@ class TuringMachineGUI:
             "q1 1 q1 0 L\n"
             "q1 B q_accept 1 S\n"
         )
-        self.txt_bulk_import.delete("1.0", tk.END)
-        self.txt_bulk_import.insert(tk.END, sample)
+        self.texto_importacion_masiva.delete("1.0", tk.END)
+        self.texto_importacion_masiva.insert(tk.END, muestra)
 
-    def load_text_file(self):
-        filepath = filedialog.askopenfilename(
+    def cargar_archivo_texto(self):
+        ruta_archivo = filedialog.askopenfilename(
             filetypes=[("Archivos CSV y Texto", "*.csv;*.txt"), ("Archivos CSV", "*.csv"), ("Archivos de Texto", "*.txt"), ("Todos los archivos", "*.*")],
             title="Cargar Tabla de Transiciones"
         )
-        if filepath:
+        if ruta_archivo:
             try:
-                with open(filepath, "r", encoding="utf-8") as f:
-                    content = f.read()
-                self.txt_bulk_import.delete("1.0", tk.END)
-                self.txt_bulk_import.insert(tk.END, content)
-                self.status_bar.config(text=f"Archivo cargado: {os.path.basename(filepath)}")
+                with open(ruta_archivo, "r", encoding="utf-8") as f:
+                    contenido = f.read()
+                self.texto_importacion_masiva.delete("1.0", tk.END)
+                self.texto_importacion_masiva.insert(tk.END, contenido)
+                self.barra_estado.config(text=f"Archivo cargado: {os.path.basename(ruta_archivo)}")
             except Exception as e:
                 messagebox.showerror("Error al leer archivo", str(e))
 
-    def process_text_import(self, show_msg: bool = True) -> bool:
-        raw_text = self.txt_bulk_import.get("1.0", tk.END).strip()
-        if not raw_text:
-            if show_msg:
+    def procesar_importacion_texto(self, mostrar_mensaje: bool = True) -> bool:
+        texto_bruto = self.texto_importacion_masiva.get("1.0", tk.END).strip()
+        if not texto_bruto:
+            if mostrar_mensaje:
                 messagebox.showwarning("Texto Vacío", "Por favor escribe o pega la tabla de transiciones antes de procesar.")
             return False
 
-        ok, msg, count = self.tm.import_from_text(raw_text, clear_existing=True)
-        if not ok:
-            messagebox.showerror("Error al Procesar Transiciones", msg)
+        exito, mensaje, conteo = self.mt.importar_desde_texto(texto_bruto, limpiar_existentes=True)
+        if not exito:
+            messagebox.showerror("Error al Procesar Transiciones", mensaje)
             return False
 
-        if hasattr(self, 'entry_states'):
-            self.entry_states.delete(0, tk.END)
-            self.entry_states.insert(0, ", ".join(sorted(list(self.tm.states))))
+        if hasattr(self, 'entrada_estados'):
+            self.entrada_estados.delete(0, tk.END)
+            self.entrada_estados.insert(0, ", ".join(sorted(list(self.mt.estados))))
 
-        self.entry_gamma.delete(0, tk.END)
-        self.entry_gamma.insert(0, ", ".join(sorted(list(self.tm.tape_alphabet))))
+        self.entrada_gamma.delete(0, tk.END)
+        self.entrada_gamma.insert(0, ", ".join(sorted(list(self.mt.alfabeto_cinta))))
 
-        self.refresh_transitions_table()
-        self.rebuild_matrix_grid()
-        self.recalculate_graph_layout()
+        self.actualizar_tabla_transiciones()
+        self.reconstruir_cuadricula_matriz()
+        self.recalcular_distribucion_grafo()
 
-        if show_msg:
-            messagebox.showinfo("Procesamiento Exitoso", msg)
-        self.status_bar.config(text=msg)
+        if mostrar_mensaje:
+            messagebox.showinfo("Procesamiento Exitoso", mensaje)
+        self.barra_estado.config(text=mensaje)
         return True
 
-    def generate_from_text_action(self):
-        if self.process_text_import(show_msg=False):
-            self.generate_automaton_action()
+    def accion_generar_desde_texto(self):
+        if self.procesar_importacion_texto(mostrar_mensaje=False):
+            self.accion_generar_automata()
 
-    def export_matrix_to_csv(self):
-        filepath = filedialog.asksaveasfilename(
+    def exportar_matriz_a_csv(self):
+        ruta_archivo = filedialog.asksaveasfilename(
             defaultextension=".csv",
             filetypes=[("Archivos CSV", "*.csv"), ("Todos los archivos", "*.*")],
             title="Exportar Tabla de Transiciones como CSV"
         )
-        if not filepath:
+        if not ruta_archivo:
             return
         try:
-            csv_str = self.tm.to_csv()
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write(csv_str)
-            messagebox.showinfo("Exportación Exitosa", f"Tabla de transiciones exportada a:\n{filepath}")
+            cadena_csv = self.mt.a_csv()
+            with open(ruta_archivo, "w", encoding="utf-8") as f:
+                f.write(cadena_csv)
+            messagebox.showinfo("Exportación Exitosa", f"Tabla de transiciones exportada a:\n{ruta_archivo}")
         except Exception as e:
             messagebox.showerror("Error al Exportar", f"No se pudo guardar el archivo: {e}")
 
-    def build_list_tab(self):
-        add_frame = ttk.Frame(self.tab_list)
-        add_frame.pack(fill=tk.X, pady=(0, 8))
+    def construir_pestana_lista(self):
+        marco_agregar = ttk.Frame(self.pestana_lista)
+        marco_agregar.pack(fill=tk.X, pady=(0, 8))
 
-        ttk.Label(add_frame, text="Estado:").grid(row=0, column=0, padx=2)
-        self.entry_t_state = ttk.Entry(add_frame, width=8)
-        self.entry_t_state.grid(row=0, column=1, padx=2)
+        ttk.Label(marco_agregar, text="Estado:").grid(row=0, column=0, padx=2)
+        self.entrada_t_estado = ttk.Entry(marco_agregar, width=8)
+        self.entrada_t_estado.grid(row=0, column=1, padx=2)
 
-        ttk.Label(add_frame, text="Lee:").grid(row=0, column=2, padx=2)
-        self.entry_t_read = ttk.Entry(add_frame, width=5)
-        self.entry_t_read.grid(row=0, column=3, padx=2)
+        ttk.Label(marco_agregar, text="Lee:").grid(row=0, column=2, padx=2)
+        self.entrada_t_lectura = ttk.Entry(marco_agregar, width=5)
+        self.entrada_t_lectura.grid(row=0, column=3, padx=2)
 
-        ttk.Label(add_frame, text="Nuevo Est:").grid(row=0, column=4, padx=2)
-        self.entry_t_next = ttk.Entry(add_frame, width=8)
-        self.entry_t_next.grid(row=0, column=5, padx=2)
+        ttk.Label(marco_agregar, text="Nuevo Est:").grid(row=0, column=4, padx=2)
+        self.entrada_t_siguiente = ttk.Entry(marco_agregar, width=8)
+        self.entrada_t_siguiente.grid(row=0, column=5, padx=2)
 
-        ttk.Label(add_frame, text="Escribe:").grid(row=0, column=6, padx=2)
-        self.entry_t_write = ttk.Entry(add_frame, width=5)
-        self.entry_t_write.grid(row=0, column=7, padx=2)
+        ttk.Label(marco_agregar, text="Escribe:").grid(row=0, column=6, padx=2)
+        self.entrada_t_escritura = ttk.Entry(marco_agregar, width=5)
+        self.entrada_t_escritura.grid(row=0, column=7, padx=2)
 
-        ttk.Label(add_frame, text="Dir:").grid(row=0, column=8, padx=2)
-        self.combo_t_dir = ttk.Combobox(add_frame, values=["R", "L", "S"], width=5, state="readonly")
-        self.combo_t_dir.set("R")
-        self.combo_t_dir.grid(row=0, column=9, padx=2)
+        ttk.Label(marco_agregar, text="Dir:").grid(row=0, column=8, padx=2)
+        self.desplegable_t_direccion = ttk.Combobox(marco_agregar, values=["R", "L", "S"], width=5, state="readonly")
+        self.desplegable_t_direccion.set("R")
+        self.desplegable_t_direccion.grid(row=0, column=9, padx=2)
 
-        btn_add_trans = ttk.Button(add_frame, text="Agregar / Modificar", command=self.add_transition_from_inputs)
-        btn_add_trans.grid(row=0, column=10, padx=(8, 2))
+        boton_agregar_trans = ttk.Button(marco_agregar, text="Agregar / Modificar", command=self.agregar_transicion_desde_entradas)
+        boton_agregar_trans.grid(row=0, column=10, padx=(8, 2))
 
-        table_container = ttk.Frame(self.tab_list)
-        table_container.pack(fill=tk.BOTH, expand=True)
+        contenedor_tabla = ttk.Frame(self.pestana_lista)
+        contenedor_tabla.pack(fill=tk.BOTH, expand=True)
 
-        columns = ("state", "read", "next", "write", "dir")
-        self.tree_transitions = ttk.Treeview(table_container, columns=columns, show="headings", selectmode="browse")
-        self.tree_transitions.heading("state", text="Estado Origen")
-        self.tree_transitions.heading("read", text="Símbolo Leído")
-        self.tree_transitions.heading("next", text="Nuevo Estado")
-        self.tree_transitions.heading("write", text="Símbolo Escrito")
-        self.tree_transitions.heading("dir", text="Dirección")
+        columnas = ("state", "read", "next", "write", "dir")
+        self.arbol_transiciones = ttk.Treeview(contenedor_tabla, columns=columnas, show="headings", selectmode="browse")
+        self.arbol_transiciones.heading("state", text="Estado Origen")
+        self.arbol_transiciones.heading("read", text="Símbolo Leído")
+        self.arbol_transiciones.heading("next", text="Nuevo Estado")
+        self.arbol_transiciones.heading("write", text="Símbolo Escrito")
+        self.arbol_transiciones.heading("dir", text="Dirección")
 
-        self.tree_transitions.column("state", width=120, anchor=tk.CENTER)
-        self.tree_transitions.column("read", width=110, anchor=tk.CENTER)
-        self.tree_transitions.column("next", width=120, anchor=tk.CENTER)
-        self.tree_transitions.column("write", width=110, anchor=tk.CENTER)
-        self.tree_transitions.column("dir", width=100, anchor=tk.CENTER)
+        self.arbol_transiciones.column("state", width=120, anchor=tk.CENTER)
+        self.arbol_transiciones.column("read", width=110, anchor=tk.CENTER)
+        self.arbol_transiciones.column("next", width=120, anchor=tk.CENTER)
+        self.arbol_transiciones.column("write", width=110, anchor=tk.CENTER)
+        self.arbol_transiciones.column("dir", width=100, anchor=tk.CENTER)
 
-        scrollbar = ttk.Scrollbar(table_container, orient=tk.VERTICAL, command=self.tree_transitions.yview)
-        self.tree_transitions.configure(yscroll=scrollbar.set)
-        self.tree_transitions.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        barra_scroll = ttk.Scrollbar(contenedor_tabla, orient=tk.VERTICAL, command=self.arbol_transiciones.yview)
+        self.arbol_transiciones.configure(yscroll=barra_scroll.set)
+        self.arbol_transiciones.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        barra_scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self.tree_transitions.bind("<<TreeviewSelect>>", self.on_transition_row_selected)
+        self.arbol_transiciones.bind("<<TreeviewSelect>>", self.al_seleccionar_fila_transicion)
 
-        table_btn_frame = ttk.Frame(self.tab_list)
-        table_btn_frame.pack(fill=tk.X, pady=(8, 0))
+        marco_botones_tabla = ttk.Frame(self.pestana_lista)
+        marco_botones_tabla.pack(fill=tk.X, pady=(8, 0))
 
-        ttk.Button(table_btn_frame, text="Eliminar Seleccionada", command=self.delete_selected_transition).pack(side=tk.LEFT, padx=4)
-        ttk.Button(table_btn_frame, text="Limpiar Transiciones", command=self.clear_all_transitions).pack(side=tk.LEFT, padx=4)
-        self.lbl_trans_count = ttk.Label(table_btn_frame, text="Total: 0 transiciones", font=("Segoe UI", 9, "italic"))
-        self.lbl_trans_count.pack(side=tk.RIGHT, padx=4)
+        ttk.Button(marco_botones_tabla, text="Eliminar Seleccionada", command=self.eliminar_transicion_seleccionada).pack(side=tk.LEFT, padx=4)
+        ttk.Button(marco_botones_tabla, text="Limpiar Transiciones", command=self.limpiar_todas_las_transiciones).pack(side=tk.LEFT, padx=4)
+        self.etiqueta_conteo_trans_lista = ttk.Label(marco_botones_tabla, text="Total: 0 transiciones", font=("Segoe UI", 9, "italic"))
+        self.etiqueta_conteo_trans_lista.pack(side=tk.RIGHT, padx=4)
 
-    def build_simulation_tab(self):
-        top_ctrl = ttk.LabelFrame(self.tab_simulation, text="Entrada y Control de Ejecución", padding=10)
-        top_ctrl.pack(fill=tk.X, pady=(0, 10))
+    def construir_pestana_simulacion(self):
+        control_superior = ttk.LabelFrame(self.pestana_simulacion, text="Entrada y Control de Ejecución", padding=10)
+        control_superior.pack(fill=tk.X, pady=(0, 10))
 
-        ttk.Label(top_ctrl, text="Cadena de Entrada:").pack(side=tk.LEFT, padx=(0, 6))
-        self.entry_sim_word = ttk.Entry(top_ctrl, width=28, font=("Consolas", 11))
-        self.entry_sim_word.pack(side=tk.LEFT, padx=(0, 10))
-        self.entry_sim_word.insert(0, "aabb")
+        ttk.Label(control_superior, text="Cadena de Entrada:").pack(side=tk.LEFT, padx=(0, 6))
+        self.entrada_sim_palabra = ttk.Entry(control_superior, width=28, font=("Consolas", 11))
+        self.entrada_sim_palabra.pack(side=tk.LEFT, padx=(0, 10))
+        self.entrada_sim_palabra.insert(0, "aabb")
 
-        btn_load_word = ttk.Button(top_ctrl, text="Cargar Palabra", command=self.sim_load_word)
-        btn_load_word.pack(side=tk.LEFT, padx=4)
+        boton_cargar_palabra = ttk.Button(control_superior, text="Cargar Palabra", command=self.sim_cargar_palabra)
+        boton_cargar_palabra.pack(side=tk.LEFT, padx=4)
 
-        self.btn_step = ttk.Button(top_ctrl, text="Paso a Paso", command=self.sim_step)
-        self.btn_step.pack(side=tk.LEFT, padx=4)
+        self.boton_paso = ttk.Button(control_superior, text="Paso a Paso", command=self.sim_paso)
+        self.boton_paso.pack(side=tk.LEFT, padx=4)
 
-        self.btn_play = ttk.Button(top_ctrl, text="Ejecutar", command=self.sim_toggle_play)
-        self.btn_play.pack(side=tk.LEFT, padx=4)
+        self.boton_reproducir = ttk.Button(control_superior, text="Ejecutar", command=self.sim_alternar_reproduccion)
+        self.boton_reproducir.pack(side=tk.LEFT, padx=4)
 
-        btn_reset = ttk.Button(top_ctrl, text="Reiniciar", command=self.sim_reset)
-        btn_reset.pack(side=tk.LEFT, padx=4)
+        boton_reiniciar = ttk.Button(control_superior, text="Reiniciar", command=self.sim_reiniciar)
+        boton_reiniciar.pack(side=tk.LEFT, padx=4)
 
-        ttk.Label(top_ctrl, text="Velocidad:").pack(side=tk.LEFT, padx=(15, 4))
-        self.speed_slider = tk.Scale(top_ctrl, from_=50, to=1000, orient=tk.HORIZONTAL, length=120, showvalue=False)
-        self.speed_slider.set(300)
-        self.speed_slider.pack(side=tk.LEFT, padx=2)
-        ttk.Label(top_ctrl, text="ms", font=("Segoe UI", 8)).pack(side=tk.LEFT)
+        ttk.Label(control_superior, text="Velocidad:").pack(side=tk.LEFT, padx=(15, 4))
+        self.deslizador_velocidad = tk.Scale(control_superior, from_=50, to=1000, orient=tk.HORIZONTAL, length=120, showvalue=False)
+        self.deslizador_velocidad.set(300)
+        self.deslizador_velocidad.pack(side=tk.LEFT, padx=2)
+        ttk.Label(control_superior, text="ms", font=("Segoe UI", 8)).pack(side=tk.LEFT)
 
-        self.lbl_sim_status = tk.Label(
-            self.tab_simulation,
+        self.etiqueta_estado_sim = tk.Label(
+            self.pestana_simulacion,
             text="Listo para simular.",
             font=("Segoe UI", 11, "bold"),
             bg="#e0f2fe",
@@ -575,570 +608,571 @@ class TuringMachineGUI:
             pady=6,
             relief=tk.GROOVE
         )
-        self.lbl_sim_status.pack(fill=tk.X, pady=(0, 10))
+        self.etiqueta_estado_sim.pack(fill=tk.X, pady=(0, 10))
 
-        tape_frame = ttk.LabelFrame(self.tab_simulation, text="Visualización de la Cinta", padding=5)
-        tape_frame.pack(fill=tk.X, pady=(0, 10))
+        marco_cinta = ttk.LabelFrame(self.pestana_simulacion, text="Visualización de la Cinta", padding=5)
+        marco_cinta.pack(fill=tk.X, pady=(0, 10))
 
-        self.tape_canvas = tk.Canvas(tape_frame, height=130, bg="#f8fafc", highlightthickness=1, highlightbackground="#cbd5e1")
-        self.tape_canvas.pack(fill=tk.X, expand=True)
+        self.lienzo_cinta = tk.Canvas(marco_cinta, height=130, bg="#f8fafc", highlightthickness=1, highlightbackground="#cbd5e1")
+        self.lienzo_cinta.pack(fill=tk.X, expand=True)
 
-        info_frame = ttk.Frame(self.tab_simulation)
-        info_frame.pack(fill=tk.X, pady=(0, 10))
+        marco_info = ttk.Frame(self.pestana_simulacion)
+        marco_info.pack(fill=tk.X, pady=(0, 10))
 
-        self.lbl_sim_cur_state = ttk.Label(info_frame, text="Estado: q0", font=("Segoe UI", 10, "bold"))
-        self.lbl_sim_cur_state.pack(side=tk.LEFT, padx=15)
+        self.etiqueta_sim_estado_actual = ttk.Label(marco_info, text="Estado: q0", font=("Segoe UI", 10, "bold"))
+        self.etiqueta_sim_estado_actual.pack(side=tk.LEFT, padx=15)
 
-        self.lbl_sim_steps = ttk.Label(info_frame, text="Pasos: 0", font=("Segoe UI", 10))
-        self.lbl_sim_steps.pack(side=tk.LEFT, padx=15)
+        self.etiqueta_sim_pasos = ttk.Label(marco_info, text="Pasos: 0", font=("Segoe UI", 10))
+        self.etiqueta_sim_pasos.pack(side=tk.LEFT, padx=15)
 
-        self.lbl_sim_head_pos = ttk.Label(info_frame, text="Posición Cabezal: 0", font=("Segoe UI", 10))
-        self.lbl_sim_head_pos.pack(side=tk.LEFT, padx=15)
+        self.etiqueta_sim_pos_cabezal = ttk.Label(marco_info, text="Posición Cabezal: 0", font=("Segoe UI", 10))
+        self.etiqueta_sim_pos_cabezal.pack(side=tk.LEFT, padx=15)
 
-        log_frame = ttk.LabelFrame(self.tab_simulation, text="Historial de Pasos", padding=5)
-        log_frame.pack(fill=tk.BOTH, expand=True)
+        marco_registro = ttk.LabelFrame(self.pestana_simulacion, text="Historial de Pasos", padding=5)
+        marco_registro.pack(fill=tk.BOTH, expand=True)
 
-        log_cols = ("step", "state", "read", "trans", "tape")
-        self.tree_log = ttk.Treeview(log_frame, columns=log_cols, show="headings")
-        self.tree_log.heading("step", text="Paso")
-        self.tree_log.heading("state", text="Estado")
-        self.tree_log.heading("read", text="Leído")
-        self.tree_log.heading("trans", text="Transición Aplicada")
-        self.tree_log.heading("tape", text="Instantánea de Cinta [Cabezal]")
+        columnas_registro = ("step", "state", "read", "trans", "tape")
+        self.arbol_registro = ttk.Treeview(marco_registro, columns=columnas_registro, show="headings")
+        self.arbol_registro.heading("step", text="Paso")
+        self.arbol_registro.heading("state", text="Estado")
+        self.arbol_registro.heading("read", text="Leído")
+        self.arbol_registro.heading("trans", text="Transición Aplicada")
+        self.arbol_registro.heading("tape", text="Instantánea de Cinta [Cabezal]")
 
-        self.tree_log.column("step", width=60, anchor=tk.CENTER)
-        self.tree_log.column("state", width=90, anchor=tk.CENTER)
-        self.tree_log.column("read", width=70, anchor=tk.CENTER)
-        self.tree_log.column("trans", width=200, anchor=tk.W)
-        self.tree_log.column("tape", width=500, anchor=tk.W)
+        self.arbol_registro.column("step", width=60, anchor=tk.CENTER)
+        self.arbol_registro.column("state", width=90, anchor=tk.CENTER)
+        self.arbol_registro.column("read", width=70, anchor=tk.CENTER)
+        self.arbol_registro.column("trans", width=200, anchor=tk.W)
+        self.arbol_registro.column("tape", width=500, anchor=tk.W)
 
-        log_scroll = ttk.Scrollbar(log_frame, orient=tk.VERTICAL, command=self.tree_log.yview)
-        self.tree_log.configure(yscroll=log_scroll.set)
-        self.tree_log.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        log_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        scroll_registro = ttk.Scrollbar(marco_registro, orient=tk.VERTICAL, command=self.arbol_registro.yview)
+        self.arbol_registro.configure(yscroll=scroll_registro.set)
+        self.arbol_registro.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll_registro.pack(side=tk.RIGHT, fill=tk.Y)
 
-    def build_graph_tab(self):
-        graph_top = ttk.Frame(self.tab_graph)
-        graph_top.pack(fill=tk.X, pady=(0, 6))
+    def construir_pestana_grafo(self):
+        panel_superior_grafo = ttk.Frame(self.pestana_grafo)
+        panel_superior_grafo.pack(fill=tk.X, pady=(0, 6))
 
-        ttk.Label(graph_top, text="Grafo de Estados y Transiciones:", font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
+        ttk.Label(panel_superior_grafo, text="Grafo de Estados y Transiciones:", font=("Segoe UI", 10, "bold")).pack(side=tk.LEFT)
 
-        btn_recalc = ttk.Button(graph_top, text="Reorganizar Nodos", command=self.recalculate_graph_layout)
-        btn_recalc.pack(side=tk.RIGHT, padx=4)
+        boton_reorganizar = ttk.Button(panel_superior_grafo, text="Reorganizar Nodos", command=self.recalcular_distribucion_grafo)
+        boton_reorganizar.pack(side=tk.RIGHT, padx=4)
 
-        self.graph_canvas = tk.Canvas(self.tab_graph, bg="#ffffff", highlightthickness=1, highlightbackground="#cbd5e1")
-        self.graph_canvas.pack(fill=tk.BOTH, expand=True)
+        self.lienzo_grafo = tk.Canvas(self.pestana_grafo, bg="#ffffff", highlightthickness=1, highlightbackground="#cbd5e1")
+        self.lienzo_grafo.pack(fill=tk.BOTH, expand=True)
 
-        self.graph_canvas.bind("<ButtonPress-1>", self.on_graph_click)
-        self.graph_canvas.bind("<B1-Motion>", self.on_graph_drag)
-        self.graph_canvas.bind("<ButtonRelease-1>", self.on_graph_release)
-        self.graph_canvas.bind("<Configure>", self.on_graph_resize)
+        self.lienzo_grafo.bind("<ButtonPress-1>", self.al_hacer_clic_grafo)
+        self.lienzo_grafo.bind("<B1-Motion>", self.al_arrastrar_grafo)
+        self.lienzo_grafo.bind("<ButtonRelease-1>", self.al_soltar_grafo)
+        self.lienzo_grafo.bind("<Configure>", self.al_redimensionar_grafo)
 
-    def on_graph_resize(self, event):
+    def al_redimensionar_grafo(self, evento):
         """
-        Se dispara cuando el canvas del diagrama recibe su tamaño real
-        (por ejemplo, al mostrar la pestaña por primera vez) o cuando cambia.
-        Recalcula el layout con el tamaño correcto, salvo que el usuario ya
-        haya movido nodos a mano.
+        Se dispara cuando el canvas del diagrama recibe su tamaño real o cuando cambia.
+        Recalcula el layout con el tamaño correcto, salvo que el usuario ya haya movido nodos a mano.
         """
-        if event.width < 50 or event.height < 50:
+        if evento.width < 50 or evento.height < 50:
             return
-        size = (event.width, event.height)
-        if size != self._layout_size and not self._nodes_moved:
-            self._layout_size = size
-            self.recalculate_graph_layout()
+        tamano = (evento.width, evento.height)
+        if tamano != self._tamano_lienzo and not self._nodos_movidos:
+            self._tamano_lienzo = tamano
+            self.recalcular_distribucion_grafo()
         else:
-            self._layout_size = size
-            self.draw_graph()
+            self._tamano_lienzo = tamano
+            self.dibujar_grafo()
 
-    def new_blank_machine(self):
-        self.tm = TuringMachine(
-            name="Nuevo Autómata",
-            states={"q0"},
-            input_alphabet=set(),
-            tape_alphabet={"B"},
-            blank_symbol="B",
-            initial_state="q0",
-            accept_states=set(),
-            reject_states=set()
+    def nueva_maquina_en_blanco(self):
+        self.mt = MaquinaTuring(
+            nombre="Nuevo Autómata",
+            estados={"q0"},
+            alfabeto_entrada=set(),
+            alfabeto_cinta={"B"},
+            simbolo_blanco="B",
+            estado_inicial="q0",
+            estados_aceptacion=set(),
+            estados_rechazo=set()
         )
-        self.lbl_machine_title.config(text=self.tm.name)
-        self.entry_name.delete(0, tk.END)
-        self.entry_name.insert(0, self.tm.name)
+        self.etiqueta_titulo_mt.config(text=self.mt.nombre)
+        self.entrada_nombre.delete(0, tk.END)
+        self.entrada_nombre.insert(0, self.mt.nombre)
 
-        self.entry_sigma.delete(0, tk.END)
-        self.entry_blank.delete(0, tk.END)
-        self.entry_blank.insert(0, "B")
-        self.entry_gamma.delete(0, tk.END)
-        self.entry_gamma.insert(0, "B")
-        self.entry_states.delete(0, tk.END)
-        self.entry_states.insert(0, "q0")
-        self.entry_init_state.delete(0, tk.END)
-        self.entry_init_state.insert(0, "q0")
-        self.entry_accept_states.delete(0, tk.END)
-        self.entry_reject_states.delete(0, tk.END)
-        self.entry_sim_word.delete(0, tk.END)
-        if hasattr(self, 'txt_bulk_import'):
-            self.txt_bulk_import.delete("1.0", tk.END)
+        self.entrada_sigma.delete(0, tk.END)
+        self.entrada_blanco.delete(0, tk.END)
+        self.entrada_blanco.insert(0, "B")
+        self.entrada_gamma.delete(0, tk.END)
+        self.entrada_gamma.insert(0, "B")
+        self.entrada_estados.delete(0, tk.END)
+        self.entrada_estados.insert(0, "q0")
+        self.entrada_estado_inicial.delete(0, tk.END)
+        self.entrada_estado_inicial.insert(0, "q0")
+        self.entrada_estados_aceptacion.delete(0, tk.END)
+        self.entrada_estados_rechazo.delete(0, tk.END)
+        self.entrada_sim_palabra.delete(0, tk.END)
+        if hasattr(self, 'texto_importacion_masiva'):
+            self.texto_importacion_masiva.delete("1.0", tk.END)
 
-        self.combo_examples.set("[En blanco]")
-        self.refresh_transitions_table()
-        if hasattr(self, 'matrix_inner_frame'):
-            self.rebuild_matrix_grid()
-        self.recalculate_graph_layout()
-        self.sim_load_word()
-        self.status_bar.config(text="Autómata en blanco listo para definir.")
+        self.desplegable_ejemplos.set("[En blanco]")
+        self.actualizar_tabla_transiciones()
+        if hasattr(self, 'marco_interno_matriz'):
+            self.reconstruir_cuadricula_matriz()
+        self.recalcular_distribucion_grafo()
+        self.sim_cargar_palabra()
+        self.barra_estado.config(text="Autómata en blanco listo para definir.")
 
-    def load_machine_into_ui(self):
-        self.lbl_machine_title.config(text=self.tm.name)
-        self.entry_name.delete(0, tk.END)
-        self.entry_name.insert(0, self.tm.name)
+    def cargar_maquina_en_interfaz(self):
+        self.etiqueta_titulo_mt.config(text=self.mt.nombre)
+        self.entrada_nombre.delete(0, tk.END)
+        self.entrada_nombre.insert(0, self.mt.nombre)
 
-        self.entry_sigma.delete(0, tk.END)
-        self.entry_sigma.insert(0, ", ".join(sorted(list(self.tm.input_alphabet))))
+        self.entrada_sigma.delete(0, tk.END)
+        self.entrada_sigma.insert(0, ", ".join(sorted(list(self.mt.alfabeto_entrada))))
 
-        self.entry_blank.delete(0, tk.END)
-        self.entry_blank.insert(0, self.tm.blank_symbol)
+        self.entrada_blanco.delete(0, tk.END)
+        self.entrada_blanco.insert(0, self.mt.simbolo_blanco)
 
-        self.entry_gamma.delete(0, tk.END)
-        self.entry_gamma.insert(0, ", ".join(sorted(list(self.tm.tape_alphabet))))
+        self.entrada_gamma.delete(0, tk.END)
+        self.entrada_gamma.insert(0, ", ".join(sorted(list(self.mt.alfabeto_cinta))))
 
-        self.entry_init_state.delete(0, tk.END)
-        self.entry_init_state.insert(0, self.tm.initial_state)
+        self.entrada_estado_inicial.delete(0, tk.END)
+        self.entrada_estado_inicial.insert(0, self.mt.estado_inicial)
 
-        self.entry_accept_states.delete(0, tk.END)
-        self.entry_accept_states.insert(0, ", ".join(sorted(list(self.tm.accept_states))))
+        self.entrada_estados_aceptacion.delete(0, tk.END)
+        self.entrada_estados_aceptacion.insert(0, ", ".join(sorted(list(self.mt.estados_aceptacion))))
 
-        self.entry_reject_states.delete(0, tk.END)
-        self.entry_reject_states.insert(0, ", ".join(sorted(list(self.tm.reject_states))))
+        self.entrada_estados_rechazo.delete(0, tk.END)
+        self.entrada_estados_rechazo.insert(0, ", ".join(sorted(list(self.mt.estados_rechazo))))
 
-        if hasattr(self, 'entry_states'):
-            self.entry_states.delete(0, tk.END)
-            self.entry_states.insert(0, ", ".join(sorted(list(self.tm.states))))
+        if hasattr(self, 'entrada_estados'):
+            self.entrada_estados.delete(0, tk.END)
+            self.entrada_estados.insert(0, ", ".join(sorted(list(self.mt.estados))))
 
-        self.refresh_transitions_table()
-        if hasattr(self, 'matrix_inner_frame'):
-            self.rebuild_matrix_grid()
-        self.recalculate_graph_layout()
-        self.sim_load_word()
+        self.actualizar_tabla_transiciones()
+        if hasattr(self, 'marco_interno_matriz'):
+            self.reconstruir_cuadricula_matriz()
+        self.recalcular_distribucion_grafo()
+        self.sim_cargar_palabra()
 
-    def refresh_transitions_table(self):
-        for item in self.tree_transitions.get_children():
-            self.tree_transitions.delete(item)
+    def actualizar_tabla_transiciones(self):
+        for elemento in self.arbol_transiciones.get_children():
+            self.arbol_transiciones.delete(elemento)
 
-        sorted_keys = sorted(self.tm.transitions.keys(), key=lambda k: (k.state, k.symbol))
-        for key in sorted_keys:
-            val = self.tm.transitions[key]
-            self.tree_transitions.insert("", tk.END, values=(key.state, key.symbol, val.next_state, val.write_symbol, val.direction.value))
+        claves_ordenadas = sorted(self.mt.transiciones.keys(), key=lambda k: (k.estado, k.simbolo))
+        for clave in claves_ordenadas:
+            valor = self.mt.transiciones[clave]
+            self.arbol_transiciones.insert(
+                "",
+                tk.END,
+                values=(clave.estado, clave.simbolo, valor.nuevo_estado, valor.simbolo_escrito, valor.direccion.value)
+            )
 
-        self.lbl_trans_count.config(text=f"Total: {len(self.tm.transitions)} transiciones")
+        total_texto = f"Total: {len(self.mt.transiciones)} transiciones"
+        self.etiqueta_conteo_trans.config(text=total_texto)
+        if hasattr(self, 'etiqueta_conteo_trans_lista'):
+            self.etiqueta_conteo_trans_lista.config(text=total_texto)
 
-    def on_example_selected(self, event=None):
-        name = self.combo_examples.get()
-        if name == "[En blanco]":
-            self.new_blank_machine()
+    def al_seleccionar_ejemplo(self, evento=None):
+        nombre = self.desplegable_ejemplos.get()
+        if nombre == "[En blanco]":
+            self.nueva_maquina_en_blanco()
             return
-        if name in AVAILABLE_EXAMPLES:
-            self.tm = AVAILABLE_EXAMPLES[name]()
-            if "a^n b^n" in name:
-                self.entry_sim_word.delete(0, tk.END)
-                self.entry_sim_word.insert(0, "aabb")
-            elif "Incrementador" in name:
-                self.entry_sim_word.delete(0, tk.END)
-                self.entry_sim_word.insert(0, "1011")
-            elif "Palíndromos" in name:
-                self.entry_sim_word.delete(0, tk.END)
-                self.entry_sim_word.insert(0, "abba")
-            elif "Inversor" in name:
-                self.entry_sim_word.delete(0, tk.END)
-                self.entry_sim_word.insert(0, "11010")
+        if nombre in EJEMPLOS_DISPONIBLES:
+            self.mt = EJEMPLOS_DISPONIBLES[nombre]()
+            if "a^n b^n" in nombre:
+                self.entrada_sim_palabra.delete(0, tk.END)
+                self.entrada_sim_palabra.insert(0, "aabb")
+            elif "Incrementador" in nombre:
+                self.entrada_sim_palabra.delete(0, tk.END)
+                self.entrada_sim_palabra.insert(0, "1011")
+            elif "Palíndromos" in nombre:
+                self.entrada_sim_palabra.delete(0, tk.END)
+                self.entrada_sim_palabra.insert(0, "abba")
+            elif "Inversor" in nombre:
+                self.entrada_sim_palabra.delete(0, tk.END)
+                self.entrada_sim_palabra.insert(0, "11010")
 
-            self.load_machine_into_ui()
-            self.status_bar.config(text=f"Ejemplo '{name}' cargado.")
+            self.cargar_maquina_en_interfaz()
+            self.barra_estado.config(text=f"Ejemplo '{nombre}' cargado.")
 
-    def _apply_definition_data(self):
-        name = self.entry_name.get().strip() or "Máquina de Turing"
-        blank = self.entry_blank.get().strip() or "B"
+    def _aplicar_datos_definicion(self):
+        nombre = self.entrada_nombre.get().strip() or "Máquina de Turing"
+        blanco = self.entrada_blanco.get().strip() or "B"
 
-        def parse_set(text: str) -> set:
-            return {part.strip() for part in text.split(",") if part.strip()}
+        def analizar_conjunto(texto: str) -> set:
+            return {parte.strip() for parte in texto.split(",") if parte.strip()}
 
-        sigma = parse_set(self.entry_sigma.get())
-        gamma = parse_set(self.entry_gamma.get())
-        states_declared = parse_set(self.entry_states.get()) if hasattr(self, 'entry_states') else set()
-        init_state = self.entry_init_state.get().strip() or "q0"
-        accept = parse_set(self.entry_accept_states.get())
-        reject = parse_set(self.entry_reject_states.get())
+        sigma = analizar_conjunto(self.entrada_sigma.get())
+        gamma = analizar_conjunto(self.entrada_gamma.get())
+        estados_declarados = analizar_conjunto(self.entrada_estados.get()) if hasattr(self, 'entrada_estados') else set()
+        estado_ini = self.entrada_estado_inicial.get().strip() or "q0"
+        aceptacion = analizar_conjunto(self.entrada_estados_aceptacion.get())
+        rechazo = analizar_conjunto(self.entrada_estados_rechazo.get())
 
-        self.tm.name = name
-        self.tm.blank_symbol = blank
-        self.tm.input_alphabet = sigma
-        self.tm.tape_alphabet = gamma
-        self.tm.initial_state = init_state
-        self.tm.accept_states = accept
-        self.tm.reject_states = reject
+        self.mt.nombre = nombre
+        self.mt.simbolo_blanco = blanco
+        self.mt.alfabeto_entrada = sigma
+        self.mt.alfabeto_cinta = gamma
+        self.mt.estado_inicial = estado_ini
+        self.mt.estados_aceptacion = aceptacion
+        self.mt.estados_rechazo = rechazo
 
-        self.tm.tape_alphabet.add(blank)
-        self.tm.tape_alphabet.update(sigma)
-        self.tm.states.update(states_declared)
-        self.tm.states.add(init_state)
-        self.tm.states.update(accept)
-        self.tm.states.update(reject)
+        self.mt.alfabeto_cinta.add(blanco)
+        self.mt.alfabeto_cinta.update(sigma)
+        self.mt.estados.update(estados_declarados)
+        self.mt.estados.add(estado_ini)
+        self.mt.estados.update(aceptacion)
+        self.mt.estados.update(rechazo)
 
-        self.lbl_machine_title.config(text=self.tm.name)
+        self.etiqueta_titulo_mt.config(text=self.mt.nombre)
 
-    def apply_definition_inputs(self):
-        self._apply_definition_data()
-        if hasattr(self, 'matrix_inner_frame'):
-            self.rebuild_matrix_grid()
-        self.recalculate_graph_layout()
+    def aplicar_entradas_definicion(self):
+        self._aplicar_datos_definicion()
+        if hasattr(self, 'marco_interno_matriz'):
+            self.reconstruir_cuadricula_matriz()
+        self.recalcular_distribucion_grafo()
         messagebox.showinfo("Parámetros Actualizados", "Los parámetros del formalismo fueron actualizados correctamente.")
 
-    def generate_automaton_action(self):
-        self._apply_definition_data()
+    def accion_generar_automata(self):
+        self._aplicar_datos_definicion()
 
-        if hasattr(self, 'trans_notebook'):
+        if hasattr(self, 'panel_transiciones'):
             try:
-                current_tab_idx = self.trans_notebook.index(self.trans_notebook.select())
-                if current_tab_idx == 0:
-                    if not self.apply_matrix_changes(show_msg=False):
+                pestana_actual_idx = self.panel_transiciones.index(self.panel_transiciones.select())
+                if pestana_actual_idx == 0:
+                    if not self.aplicar_cambios_matriz(mostrar_mensaje=False):
                         return
-                elif current_tab_idx == 1:
-                    if not self.process_text_import(show_msg=False):
+                elif pestana_actual_idx == 1:
+                    if not self.procesar_importacion_texto(mostrar_mensaje=False):
                         return
             except Exception:
                 pass
 
-        self.refresh_transitions_table()
-        if hasattr(self, 'matrix_inner_frame'):
-            self.rebuild_matrix_grid()
+        self.actualizar_tabla_transiciones()
+        if hasattr(self, 'marco_interno_matriz'):
+            self.reconstruir_cuadricula_matriz()
 
-        is_valid, msgs = self.tm.validate()
+        es_valido, mensajes = self.mt.validar()
 
-        self.notebook.select(self.tab_graph)
-        # Forzar que el canvas obtenga su tamaño real antes de calcular el layout
-        self.root.update_idletasks()
-        self.recalculate_graph_layout()
+        self.panel_pestanas.select(self.pestana_grafo)
+        self.raiz.update_idletasks()
+        self.recalcular_distribucion_grafo()
 
-        trans_count = len(self.tm.transitions)
-        states_count = len(self.tm.states)
-        status_msg = f"Autómata generado: {states_count} estados, {trans_count} transiciones."
-        self.status_bar.config(text=status_msg)
+        conteo_trans = len(self.mt.transiciones)
+        conteo_estados = len(self.mt.estados)
+        mensaje_estado = f"Autómata generado: {conteo_estados} estados, {conteo_trans} transiciones."
+        self.barra_estado.config(text=mensaje_estado)
 
-        if not is_valid:
-            warns = "\n- ".join(msgs[:4])
+        if not es_valido:
+            observaciones = "\n- ".join(mensajes[:4])
             messagebox.showwarning(
                 "Autómata Generado con Observaciones",
-                f"El autómata se generó con {states_count} estados y {trans_count} transiciones, pero tiene observaciones:\n\n- {warns}"
+                f"El autómata se generó con {conteo_estados} estados y {conteo_trans} transiciones, pero tiene observaciones:\n\n- {observaciones}"
             )
         else:
             messagebox.showinfo(
                 "Autómata Generado",
-                f"El autómata '{self.tm.name}' fue generado exitosamente.\n\n"
-                f"Estados: {states_count}\n"
-                f"Transiciones: {trans_count}"
+                f"El autómata '{self.mt.nombre}' fue generado exitosamente.\n\n"
+                f"Estados: {conteo_estados}\n"
+                f"Transiciones: {conteo_trans}"
             )
 
-    def add_transition_from_inputs(self):
-        state = self.entry_t_state.get().strip()
-        read_sym = self.entry_t_read.get().strip()
-        next_state = self.entry_t_next.get().strip()
-        write_sym = self.entry_t_write.get().strip()
-        dir_val = self.combo_t_dir.get().split()[0]
+    def agregar_transicion_desde_entradas(self):
+        estado = self.entrada_t_estado.get().strip()
+        simb_lectura = self.entrada_t_lectura.get().strip()
+        nuevo_estado = self.entrada_t_siguiente.get().strip()
+        simb_escritura = self.entrada_t_escritura.get().strip()
+        dir_val = self.desplegable_t_direccion.get().split()[0]
 
-        if not state or not read_sym or not next_state or not write_sym:
+        if not estado or not simb_lectura or not nuevo_estado or not simb_escritura:
             messagebox.showwarning("Campos Requeridos", "Por favor completa todos los campos de la transición.")
             return
 
-        self.tm.add_transition(state, read_sym, next_state, write_sym, dir_val)
-        self.refresh_transitions_table()
-        if hasattr(self, 'matrix_inner_frame'):
-            self.rebuild_matrix_grid()
-        self.recalculate_graph_layout()
+        self.mt.agregar_transicion(estado, simb_lectura, nuevo_estado, simb_escritura, dir_val)
+        self.actualizar_tabla_transiciones()
+        if hasattr(self, 'marco_interno_matriz'):
+            self.reconstruir_cuadricula_matriz()
+        self.recalcular_distribucion_grafo()
 
-        self.entry_t_read.delete(0, tk.END)
-        self.entry_t_write.delete(0, tk.END)
-        self.status_bar.config(text=f"Transición guardada: ({state}, {read_sym}) -> ({next_state}, {write_sym}, {dir_val})")
+        self.entrada_t_lectura.delete(0, tk.END)
+        self.entrada_t_escritura.delete(0, tk.END)
+        self.barra_estado.config(text=f"Transición guardada: ({estado}, {simb_lectura}) -> ({nuevo_estado}, {simb_escritura}, {dir_val})")
 
-    def on_transition_row_selected(self, event=None):
-        selected = self.tree_transitions.selection()
-        if not selected:
+    def al_seleccionar_fila_transicion(self, evento=None):
+        seleccion = self.arbol_transiciones.selection()
+        if not seleccion:
             return
-        item = self.tree_transitions.item(selected[0])
-        vals = item['values']
-        if len(vals) == 5:
-            self.entry_t_state.delete(0, tk.END)
-            self.entry_t_state.insert(0, str(vals[0]))
-            self.entry_t_read.delete(0, tk.END)
-            self.entry_t_read.insert(0, str(vals[1]))
-            self.entry_t_next.delete(0, tk.END)
-            self.entry_t_next.insert(0, str(vals[2]))
-            self.entry_t_write.delete(0, tk.END)
-            self.entry_t_write.insert(0, str(vals[3]))
-            dir_str = str(vals[4])
+        elemento = self.arbol_transiciones.item(seleccion[0])
+        valores = elemento['values']
+        if len(valores) == 5:
+            self.entrada_t_estado.delete(0, tk.END)
+            self.entrada_t_estado.insert(0, str(valores[0]))
+            self.entrada_t_lectura.delete(0, tk.END)
+            self.entrada_t_lectura.insert(0, str(valores[1]))
+            self.entrada_t_siguiente.delete(0, tk.END)
+            self.entrada_t_siguiente.insert(0, str(valores[2]))
+            self.entrada_t_escritura.delete(0, tk.END)
+            self.entrada_t_escritura.insert(0, str(valores[3]))
+            dir_str = str(valores[4])
             for opt in ["R", "L", "S"]:
                 if opt == dir_str:
-                    self.combo_t_dir.set(opt)
+                    self.desplegable_t_direccion.set(opt)
                     break
 
-    def delete_selected_transition(self):
-        selected = self.tree_transitions.selection()
-        if not selected:
+    def eliminar_transicion_seleccionada(self):
+        seleccion = self.arbol_transiciones.selection()
+        if not seleccion:
             messagebox.showinfo("Selección requerida", "Selecciona una fila de la tabla para eliminar.")
             return
-        vals = self.tree_transitions.item(selected[0])['values']
-        state, read_sym = str(vals[0]), str(vals[1])
-        if self.tm.remove_transition(state, read_sym):
-            self.refresh_transitions_table()
-            if hasattr(self, 'matrix_inner_frame'):
-                self.rebuild_matrix_grid()
-            self.recalculate_graph_layout()
-            self.status_bar.config(text=f"Transición eliminada: ({state}, {read_sym})")
+        valores = self.arbol_transiciones.item(seleccion[0])['values']
+        estado, simb_lectura = str(valores[0]), str(valores[1])
+        if self.mt.eliminar_transicion(estado, simb_lectura):
+            self.actualizar_tabla_transiciones()
+            if hasattr(self, 'marco_interno_matriz'):
+                self.reconstruir_cuadricula_matriz()
+            self.recalcular_distribucion_grafo()
+            self.barra_estado.config(text=f"Transición eliminada: ({estado}, {simb_lectura})")
 
-    def clear_all_transitions(self):
+    def limpiar_todas_las_transiciones(self):
         if messagebox.askyesno("Confirmar", "¿Seguro que deseas eliminar todas las transiciones?"):
-            self.tm.clear_transitions()
-            self.refresh_transitions_table()
-            if hasattr(self, 'matrix_inner_frame'):
-                self.rebuild_matrix_grid()
-            self.recalculate_graph_layout()
-            self.status_bar.config(text="Todas las transiciones han sido eliminadas.")
+            self.mt.limpiar_transiciones()
+            self.actualizar_tabla_transiciones()
+            if hasattr(self, 'marco_interno_matriz'):
+                self.reconstruir_cuadricula_matriz()
+            self.recalcular_distribucion_grafo()
+            self.barra_estado.config(text="Todas las transiciones han sido eliminadas.")
 
-    def validate_machine(self):
-        is_valid, messages = self.tm.validate()
-        if is_valid and not messages:
+    def validar_maquina(self):
+        es_valido, mensajes = self.mt.validar()
+        if es_valido and not mensajes:
             messagebox.showinfo("Validación Exitosa", "La Máquina de Turing está formalmente bien definida.")
-        elif is_valid:
-            warns = "\n- ".join(messages)
-            messagebox.showwarning("Advertencias", f"La máquina es válida pero tiene observaciones:\n\n- {warns}")
+        elif es_valido:
+            observaciones = "\n- ".join(mensajes)
+            messagebox.showwarning("Advertencias", f"La máquina es válida pero tiene observaciones:\n\n- {observaciones}")
         else:
-            errs = "\n- ".join(messages)
-            messagebox.showerror("Errores de Validación", f"Se encontraron errores formales:\n\n- {errs}")
+            errores = "\n- ".join(mensajes)
+            messagebox.showerror("Errores de Validación", f"Se encontraron errores formales:\n\n- {errores}")
 
-    def save_to_json(self):
-        filepath = filedialog.asksaveasfilename(
+    def guardar_en_json(self):
+        ruta_archivo = filedialog.asksaveasfilename(
             defaultextension=".json",
             filetypes=[("Archivos JSON", "*.json"), ("Todos los archivos", "*.*")],
             title="Guardar Máquina de Turing"
         )
-        if filepath:
+        if ruta_archivo:
             try:
-                with open(filepath, "w", encoding="utf-8") as f:
-                    f.write(self.tm.to_json())
-                messagebox.showinfo("Guardado", f"Máquina guardada con éxito en:\n{filepath}")
+                with open(ruta_archivo, "w", encoding="utf-8") as f:
+                    f.write(self.mt.a_json())
+                messagebox.showinfo("Guardado", f"Máquina guardada con éxito en:\n{ruta_archivo}")
             except Exception as e:
                 messagebox.showerror("Error al guardar", str(e))
 
-    def load_from_json(self):
-        filepath = filedialog.askopenfilename(
+    def cargar_desde_json(self):
+        ruta_archivo = filedialog.askopenfilename(
             filetypes=[("Archivos JSON", "*.json"), ("Todos los archivos", "*.*")],
             title="Cargar Máquina de Turing"
         )
-        if filepath:
+        if ruta_archivo:
             try:
-                with open(filepath, "r", encoding="utf-8") as f:
-                    content = f.read()
-                self.tm = TuringMachine.from_json(content)
-                self.load_machine_into_ui()
-                messagebox.showinfo("Cargado", f"Máquina cargada correctamente desde:\n{filepath}")
+                with open(ruta_archivo, "r", encoding="utf-8") as f:
+                    contenido = f.read()
+                self.mt = MaquinaTuring.desde_json(contenido)
+                self.cargar_maquina_en_interfaz()
+                messagebox.showinfo("Cargado", f"Máquina cargada correctamente desde:\n{ruta_archivo}")
             except Exception as e:
                 messagebox.showerror("Error al cargar", f"No se pudo procesar el archivo:\n{e}")
 
-    def sim_load_word(self):
-        if self.is_simulating:
-            self.sim_toggle_play()
+    def sim_cargar_palabra(self):
+        if self.simulando:
+            self.sim_alternar_reproduccion()
 
-        word = self.entry_sim_word.get().strip()
-        self.tm.load_input(word)
-        self.refresh_simulation_view()
-        self.status_bar.config(text=f"Palabra '{word}' cargada.")
+        palabra = self.entrada_sim_palabra.get().strip()
+        self.mt.cargar_entrada(palabra)
+        self.actualizar_vista_simulacion()
+        self.barra_estado.config(text=f"Palabra '{palabra}' cargada.")
 
-    def sim_reset(self):
-        self.sim_load_word()
+    def sim_reiniciar(self):
+        self.sim_cargar_palabra()
 
-    def sim_step(self):
-        if self.tm.halted:
+    def sim_paso(self):
+        if self.mt.detenida:
             return
 
-        running, msg = self.tm.step()
-        self.refresh_simulation_view(msg)
+        continua, mensaje = self.mt.ejecutar_paso()
+        self.actualizar_vista_simulacion(mensaje)
 
-        if not running and self.is_simulating:
-            self.sim_toggle_play()
+        if not continua and self.simulando:
+            self.sim_alternar_reproduccion()
 
-    def sim_toggle_play(self):
-        if self.is_simulating:
-            self.is_simulating = False
-            self.btn_play.config(text="Ejecutar")
-            if self.sim_after_id:
-                self.root.after_cancel(self.sim_after_id)
-                self.sim_after_id = None
+    def sim_alternar_reproduccion(self):
+        if self.simulando:
+            self.simulando = False
+            self.boton_reproducir.config(text="Ejecutar")
+            if self.id_temporizador_simulacion:
+                self.raiz.after_cancel(self.id_temporizador_simulacion)
+                self.id_temporizador_simulacion = None
         else:
-            if self.tm.halted:
-                self.sim_load_word()
+            if self.mt.detenida:
+                self.sim_cargar_palabra()
 
-            self.is_simulating = True
-            self.btn_play.config(text="Pausa")
-            self.run_sim_loop()
+            self.simulando = True
+            self.boton_reproducir.config(text="Pausa")
+            self.ejecutar_bucle_simulacion()
 
-    def run_sim_loop(self):
-        if not self.is_simulating:
+    def ejecutar_bucle_simulacion(self):
+        if not self.simulando:
             return
 
-        if not self.tm.halted:
-            self.sim_step()
-            delay = int(self.speed_slider.get())
-            self.sim_after_id = self.root.after(delay, self.run_sim_loop)
+        if not self.mt.detenida:
+            self.sim_paso()
+            demora = int(self.deslizador_velocidad.get())
+            self.id_temporizador_simulacion = self.raiz.after(demora, self.ejecutar_bucle_simulacion)
         else:
-            self.sim_toggle_play()
+            self.sim_alternar_reproduccion()
 
-    def refresh_simulation_view(self, status_msg: Optional[str] = None):
-        self.lbl_sim_cur_state.config(text=f"Estado: {self.tm.current_state}")
-        self.lbl_sim_steps.config(text=f"Pasos: {self.tm.step_count}")
-        self.lbl_sim_head_pos.config(text=f"Posición Cabezal: {self.tm.head_position}")
+    def actualizar_vista_simulacion(self, mensaje_estado: Optional[str] = None):
+        self.etiqueta_sim_estado_actual.config(text=f"Estado: {self.mt.estado_actual}")
+        self.etiqueta_sim_pasos.config(text=f"Pasos: {self.mt.contador_pasos}")
+        self.etiqueta_sim_pos_cabezal.config(text=f"Posición Cabezal: {self.mt.posicion_cabezal}")
 
-        if self.tm.accepted:
-            self.lbl_sim_status.config(
-                text=f"Cadena ACEPTADA. Parada en estado '{self.tm.current_state}' ({self.tm.step_count} pasos)",
+        if self.mt.aceptada:
+            self.etiqueta_estado_sim.config(
+                text=f"Cadena ACEPTADA. Parada en estado '{self.mt.estado_actual}' ({self.mt.contador_pasos} pasos)",
                 bg="#dcfce7", fg="#15803d"
             )
-        elif self.tm.rejected:
-            self.lbl_sim_status.config(
-                text=f"Cadena RECHAZADA. Parada en estado '{self.tm.current_state}' ({self.tm.step_count} pasos)",
+        elif self.mt.rechazada:
+            self.etiqueta_estado_sim.config(
+                text=f"Cadena RECHAZADA. Parada en estado '{self.mt.estado_actual}' ({self.mt.contador_pasos} pasos)",
                 bg="#fee2e2", fg="#b91c1c"
             )
         else:
-            msg = status_msg or f"Simulando. Estado actual: {self.tm.current_state}"
-            self.lbl_sim_status.config(text=msg, bg="#e0f2fe", fg="#0369a1")
+            mensaje = mensaje_estado or f"Simulando. Estado actual: {self.mt.estado_actual}"
+            self.etiqueta_estado_sim.config(text=mensaje, bg="#e0f2fe", fg="#0369a1")
 
-        self.draw_tape()
+        self.dibujar_cinta()
 
-        for item in self.tree_log.get_children():
-            self.tree_log.delete(item)
+        for elemento in self.arbol_registro.get_children():
+            self.arbol_registro.delete(elemento)
 
-        for rec in self.tm.history:
-            trans_str = ""
-            if rec.next_state:
-                trans_str = f"({rec.next_state}, '{rec.write_symbol}', {rec.direction.value if rec.direction else ''})"
-            elif rec.step_number == 0:
-                trans_str = "(Inicio)"
+        for reg in self.mt.historial:
+            cadena_trans = ""
+            if reg.nuevo_estado:
+                cadena_trans = f"({reg.nuevo_estado}, '{reg.simbolo_escrito}', {reg.direccion.value if reg.direccion else ''})"
+            elif reg.numero_paso == 0:
+                cadena_trans = "(Inicio)"
             else:
-                trans_str = "(Parada)"
+                cadena_trans = "(Parada)"
 
-            self.tree_log.insert("", tk.END, values=(
-                rec.step_number,
-                rec.current_state,
-                rec.read_symbol,
-                trans_str,
-                rec.tape_snapshot
+            self.arbol_registro.insert("", tk.END, values=(
+                reg.numero_paso,
+                reg.estado_actual,
+                reg.simbolo_leido,
+                cadena_trans,
+                reg.captura_cinta
             ))
 
-        children = self.tree_log.get_children()
-        if children:
-            self.tree_log.see(children[-1])
+        elementos = self.arbol_registro.get_children()
+        if elementos:
+            self.arbol_registro.see(elementos[-1])
 
-        self.draw_graph()
+        self.dibujar_grafo()
 
-    def draw_tape(self):
-        self.tape_canvas.delete("all")
-        cw = self.tape_canvas.winfo_width()
-        if cw < 50:
-            cw = 750
-        ch = 130
+    def dibujar_cinta(self):
+        self.lienzo_cinta.delete("all")
+        ancho_lienzo = self.lienzo_cinta.winfo_width()
+        if ancho_lienzo < 50:
+            ancho_lienzo = 750
+        alto_lienzo = 130
 
-        cell_w = 48
-        cell_h = 50
-        cell_y = 35
+        ancho_celda = 48
+        alto_celda = 50
+        pos_y_celda = 35
 
-        center_x = cw / 2
-        head = self.tm.head_position
+        centro_x = ancho_lienzo / 2
+        cabezal = self.mt.posicion_cabezal
 
-        cells_each_side = int(cw / (2 * cell_w)) + 2
-        min_cell = head - cells_each_side
-        max_cell = head + cells_each_side
+        celdas_por_lado = int(ancho_lienzo / (2 * ancho_celda)) + 2
+        celda_min = cabezal - celdas_por_lado
+        celda_max = cabezal + celdas_por_lado
 
-        for i in range(min_cell, max_cell + 1):
-            x1 = center_x + (i - head) * cell_w - (cell_w / 2)
-            x2 = x1 + cell_w
-            y1 = cell_y
-            y2 = y1 + cell_h
+        for i in range(celda_min, celda_max + 1):
+            x1 = centro_x + (i - cabezal) * ancho_celda - (ancho_celda / 2)
+            x2 = x1 + ancho_celda
+            y1 = pos_y_celda
+            y2 = y1 + alto_celda
 
-            is_head = (i == head)
-            bg_color = "#dbeafe" if is_head else "#ffffff"
-            border_color = "#2563eb" if is_head else "#cbd5e1"
-            border_width = 3 if is_head else 1
+            es_cabezal = (i == cabezal)
+            color_fondo = "#dbeafe" if es_cabezal else "#ffffff"
+            color_borde = "#2563eb" if es_cabezal else "#cbd5e1"
+            grosor_borde = 3 if es_cabezal else 1
 
-            self.tape_canvas.create_rectangle(x1, y1, x2, y2, fill=bg_color, outline=border_color, width=border_width)
-            self.tape_canvas.create_text(x1 + cell_w / 2, y1 - 10, text=str(i), font=("Segoe UI", 8), fill="#64748b")
+            self.lienzo_cinta.create_rectangle(x1, y1, x2, y2, fill=color_fondo, outline=color_borde, width=grosor_borde)
+            self.lienzo_cinta.create_text(x1 + ancho_celda / 2, y1 - 10, text=str(i), font=("Segoe UI", 8), fill="#64748b")
 
-            symbol = self.tm.get_tape_symbol(i)
-            font_weight = "bold" if is_head else "normal"
-            text_color = "#1e3a8a" if is_head else "#0f172a"
-            self.tape_canvas.create_text(x1 + cell_w / 2, y1 + cell_h / 2, text=symbol, font=("Consolas", 16, font_weight), fill=text_color)
+            simbolo = self.mt.obtener_simbolo_cinta(i)
+            peso_fuente = "bold" if es_cabezal else "normal"
+            color_texto = "#1e3a8a" if es_cabezal else "#0f172a"
+            self.lienzo_cinta.create_text(x1 + ancho_celda / 2, y1 + alto_celda / 2, text=simbolo, font=("Consolas", 16, peso_fuente), fill=color_texto)
 
-            if is_head:
-                arrow_y = y2 + 5
-                self.tape_canvas.create_polygon(
-                    center_x, arrow_y,
-                    center_x - 9, arrow_y + 14,
-                    center_x + 9, arrow_y + 14,
+            if es_cabezal:
+                y_flecha = y2 + 5
+                self.lienzo_cinta.create_polygon(
+                    centro_x, y_flecha,
+                    centro_x - 9, y_flecha + 14,
+                    centro_x + 9, y_flecha + 14,
                     fill="#2563eb", outline="#1d4ed8"
                 )
-                self.tape_canvas.create_text(center_x, arrow_y + 26, text="CABEZAL", font=("Segoe UI", 8, "bold"), fill="#2563eb")
+                self.lienzo_cinta.create_text(centro_x, y_flecha + 26, text="CABEZAL", font=("Segoe UI", 8, "bold"), fill="#2563eb")
 
-    def recalculate_graph_layout(self):
-        # Antes de que la ventana se dibuje, winfo_width() devuelve 1.
-        # Si el tamaño no es confiable, usamos un tamaño por defecto;
-        # on_graph_resize recalculará cuando el canvas tenga su tamaño real.
-        w = self.graph_canvas.winfo_width()
-        h = self.graph_canvas.winfo_height()
-        if w < 50 or h < 50:
-            w, h = 750, 500
+    def recalcular_distribucion_grafo(self):
+        ancho = self.lienzo_grafo.winfo_width()
+        alto = self.lienzo_grafo.winfo_height()
+        if ancho < 50 or alto < 50:
+            ancho, alto = 750, 500
 
-        self._nodes_moved = False
-        states_list = sorted(list(self.tm.states))
-        self.node_positions = GraphLayout.compute_positions(
-            states=states_list,
-            initial_state=self.tm.initial_state,
-            width=w,
-            height=h
+        self._nodos_movidos = False
+        lista_estados = sorted(list(self.mt.estados))
+        self.posiciones_nodos = DistribucionGrafo.calcular_posiciones(
+            estados=lista_estados,
+            estado_inicial=self.mt.estado_inicial,
+            ancho=ancho,
+            alto=alto
         )
-        self.draw_graph()
+        self.dibujar_grafo()
 
-    def draw_graph(self):
-        self.graph_canvas.delete("all")
-        if not self.node_positions:
+    def dibujar_grafo(self):
+        self.lienzo_grafo.delete("all")
+        if not self.posiciones_nodos:
             return
 
-        radius = 28.0
+        radio = 28.0
 
-        edges: Dict[Tuple[str, str], List[str]] = {}
-        for key, val in self.tm.transitions.items():
-            pair = (key.state, val.next_state)
-            label = f"{key.symbol}/{val.write_symbol},{val.direction.value}"
-            edges.setdefault(pair, []).append(label)
+        aristas: Dict[Tuple[str, str], List[str]] = {}
+        for clave, valor in self.mt.transiciones.items():
+            par = (clave.estado, valor.nuevo_estado)
+            etiqueta = f"{clave.simbolo}/{valor.simbolo_escrito},{valor.direccion.value}"
+            aristas.setdefault(par, []).append(etiqueta)
 
-        for (u, v), labels in edges.items():
-            if u not in self.node_positions or v not in self.node_positions:
+        for (u, v), etiquetas in aristas.items():
+            if u not in self.posiciones_nodos or v not in self.posiciones_nodos:
                 continue
 
-            x1, y1 = self.node_positions[u]
-            x2, y2 = self.node_positions[v]
-            label_text = "\n".join(labels)
+            x1, y1 = self.posiciones_nodos[u]
+            x2, y2 = self.posiciones_nodos[v]
+            texto_etiqueta = "\n".join(etiquetas)
 
             if u == v:
-                loop_h = 55.0
-                cx, cy = x1, y1 - radius
-                self.graph_canvas.create_arc(
-                    cx - 24, cy - loop_h, cx + 24, cy + 10,
+                alto_bucle = 55.0
+                cx, cy = x1, y1 - radio
+                self.lienzo_grafo.create_arc(
+                    cx - 24, cy - alto_bucle, cx + 24, cy + 10,
                     start=20, extent=320, style=tk.ARC,
                     outline="#64748b", width=2
                 )
-                self.graph_canvas.create_line(
+                self.lienzo_grafo.create_line(
                     cx + 18, cy - 2, cx + 5, cy + 5,
                     arrow=tk.LAST, fill="#64748b", width=2
                 )
-                self.graph_canvas.create_text(cx, cy - loop_h - 10, text=label_text, font=("Segoe UI", 8, "bold"), fill="#334155")
+                self.lienzo_grafo.create_text(cx, cy - alto_bucle - 10, text=texto_etiqueta, font=("Segoe UI", 8, "bold"), fill="#334155")
             else:
                 dx = x2 - x1
                 dy = y2 - y1
@@ -1149,93 +1183,93 @@ class TuringMachineGUI:
                 ux = dx / dist
                 uy = dy / dist
 
-                has_reverse = (v, u) in edges
-                offset = 24.0 if has_reverse else 0.0
+                tiene_inversa = (v, u) in aristas
+                desplazamiento = 24.0 if tiene_inversa else 0.0
 
-                start_x = x1 + ux * radius - uy * offset * 0.4
-                start_y = y1 + uy * radius + ux * offset * 0.4
-                end_x = x2 - ux * radius - uy * offset * 0.4
-                end_y = y2 - uy * radius + ux * offset * 0.4
+                inicio_x = x1 + ux * radio - uy * desplazamiento * 0.4
+                inicio_y = y1 + uy * radio + ux * desplazamiento * 0.4
+                fin_x = x2 - ux * radio - uy * desplazamiento * 0.4
+                fin_y = y2 - uy * radio + ux * desplazamiento * 0.4
 
-                mid_x = (start_x + end_x) / 2 - uy * offset
-                mid_y = (start_y + end_y) / 2 + ux * offset
+                medio_x = (inicio_x + fin_x) / 2 - uy * desplazamiento
+                medio_y = (inicio_y + fin_y) / 2 + ux * desplazamiento
 
-                self.graph_canvas.create_line(
-                    start_x, start_y, mid_x, mid_y, end_x, end_y,
+                self.lienzo_grafo.create_line(
+                    inicio_x, inicio_y, medio_x, medio_y, fin_x, fin_y,
                     smooth=True, arrow=tk.LAST, arrowshape=(12, 14, 5),
                     fill="#64748b", width=2
                 )
 
-                label_x = mid_x - uy * 10
-                label_y = mid_y + ux * 10
-                self.graph_canvas.create_text(
-                    label_x, label_y,
-                    text=label_text,
+                etiqueta_x = medio_x - uy * 10
+                etiqueta_y = medio_y + ux * 10
+                self.lienzo_grafo.create_text(
+                    etiqueta_x, etiqueta_y,
+                    text=texto_etiqueta,
                     font=("Segoe UI", 8, "bold"),
                     fill="#1e293b"
                 )
 
-        for state, (x, y) in self.node_positions.items():
-            is_init = (state == self.tm.initial_state)
-            is_acc = (state in self.tm.accept_states)
-            is_rej = (state in self.tm.reject_states)
-            is_current = (state == self.tm.current_state)
+        for estado, (x, y) in self.posiciones_nodos.items():
+            es_inicio = (estado == self.mt.estado_inicial)
+            es_aceptacion = (estado in self.mt.estados_aceptacion)
+            es_rechazo = (estado in self.mt.estados_rechazo)
+            es_actual = (estado == self.mt.estado_actual)
 
-            if is_current:
-                bg = "#fef08a"
-                border = "#ca8a04"
-                border_w = 4
-            elif is_acc:
-                bg = "#dcfce7"
-                border = "#16a34a"
-                border_w = 3
-            elif is_rej:
-                bg = "#fee2e2"
-                border = "#dc2626"
-                border_w = 3
+            if es_actual:
+                fondo = "#fef08a"
+                borde = "#ca8a04"
+                grosor_borde = 4
+            elif es_aceptacion:
+                fondo = "#dcfce7"
+                borde = "#16a34a"
+                grosor_borde = 3
+            elif es_rechazo:
+                fondo = "#fee2e2"
+                borde = "#dc2626"
+                grosor_borde = 3
             else:
-                bg = "#eff6ff"
-                border = "#2563eb"
-                border_w = 2
+                fondo = "#eff6ff"
+                borde = "#2563eb"
+                grosor_borde = 2
 
-            self.graph_canvas.create_oval(
-                x - radius, y - radius, x + radius, y + radius,
-                fill=bg, outline=border, width=border_w, tags=("node", state)
+            self.lienzo_grafo.create_oval(
+                x - radio, y - radio, x + radio, y + radio,
+                fill=fondo, outline=borde, width=grosor_borde, tags=("node", estado)
             )
 
-            if is_acc:
-                self.graph_canvas.create_oval(
-                    x - (radius - 5), y - (radius - 5), x + (radius - 5), y + (radius - 5),
-                    outline=border, width=2, tags=("node", state)
+            if es_aceptacion:
+                self.lienzo_grafo.create_oval(
+                    x - (radio - 5), y - (radio - 5), x + (radio - 5), y + (radio - 5),
+                    outline=borde, width=2, tags=("node", estado)
                 )
 
-            if is_init:
-                self.graph_canvas.create_line(
-                    x - radius - 30, y, x - radius, y,
+            if es_inicio:
+                self.lienzo_grafo.create_line(
+                    x - radio - 30, y, x - radio, y,
                     arrow=tk.LAST, fill="#0f172a", width=3
                 )
-                self.graph_canvas.create_text(x - radius - 45, y, text="Inicio", font=("Segoe UI", 8, "bold"), fill="#0f172a")
+                self.lienzo_grafo.create_text(x - radio - 45, y, text="Inicio", font=("Segoe UI", 8, "bold"), fill="#0f172a")
 
-            font_style = ("Segoe UI", 10, "bold") if is_current else ("Segoe UI", 10)
-            self.graph_canvas.create_text(x, y, text=state, font=font_style, fill="#0f172a", tags=("node", state))
+            estilo_fuente = ("Segoe UI", 10, "bold") if es_actual else ("Segoe UI", 10)
+            self.lienzo_grafo.create_text(x, y, text=estado, font=estilo_fuente, fill="#0f172a", tags=("node", estado))
 
-    def on_graph_click(self, event):
-        x, y = event.x, event.y
-        radius = 30.0
-        for state, (nx, ny) in self.node_positions.items():
-            if math.hypot(x - nx, y - ny) <= radius:
-                self.drag_node = state
-                self.drag_offset_x = nx - x
-                self.drag_offset_y = ny - y
+    def al_hacer_clic_grafo(self, evento):
+        pos_x, pos_y = evento.x, evento.y
+        radio = 30.0
+        for estado, (nx, ny) in self.posiciones_nodos.items():
+            if math.hypot(pos_x - nx, pos_y - ny) <= radio:
+                self.nodo_arrastrado = estado
+                self.desplazamiento_arrastre_x = nx - pos_x
+                self.desplazamiento_arrastre_y = ny - pos_y
                 return
 
-    def on_graph_drag(self, event):
-        if self.drag_node and self.drag_node in self.node_positions:
-            new_x = event.x + self.drag_offset_x
-            new_y = event.y + self.drag_offset_y
-            self.node_positions[self.drag_node] = (new_x, new_y)
-            self._nodes_moved = True
-            self.draw_graph()
+    def al_arrastrar_grafo(self, evento):
+        if self.nodo_arrastrado and self.nodo_arrastrado in self.posiciones_nodos:
+            nuevo_x = evento.x + self.desplazamiento_arrastre_x
+            nuevo_y = evento.y + self.desplazamiento_arrastre_y
+            self.posiciones_nodos[self.nodo_arrastrado] = (nuevo_x, nuevo_y)
+            self._nodos_movidos = True
+            self.dibujar_grafo()
 
-    def on_graph_release(self, event):
-        self.drag_node = None
+    def al_soltar_grafo(self, evento):
+        self.nodo_arrastrado = None

@@ -7,19 +7,19 @@ import sys
 import argparse
 import tkinter as tk
 
-from turing_machine import TuringMachine
-from examples_data import AVAILABLE_EXAMPLES
-from gui import TuringMachineGUI
+from turing_machine import MaquinaTuring
+from examples_data import EJEMPLOS_DISPONIBLES
+from gui import InterfazMaquinaTuring
 
 
-def run_gui():
+def ejecutar_interfaz_grafica():
     """Inicia la aplicación con Interfaz Gráfica (Tkinter)."""
-    root = tk.Tk()
-    app = TuringMachineGUI(root)
-    root.mainloop()
+    raiz = tk.Tk()
+    aplicacion = InterfazMaquinaTuring(raiz)
+    raiz.mainloop()
 
 
-def run_cli_interactive():
+def ejecutar_cli_interactivo():
     """Modo interactivo en la terminal para definir y probar una Máquina de Turing."""
     print("=" * 65)
     print("      SIMULADOR Y GENERADOR DE MÁQUINAS DE TURING (CLI)      ")
@@ -27,53 +27,53 @@ def run_cli_interactive():
     print("1. Usar un ejemplo predefinido")
     print("2. Ingresar un nuevo autómata manualmente")
     print("3. Iniciar la Interfaz Gráfica (Recomendado)")
-    
-    choice = input("\nSeleccione una opción (1/2/3) [1]: ").strip() or "1"
-    
-    if choice == "3":
-        run_gui()
+
+    opcion = input("\nSeleccione una opción (1/2/3) [1]: ").strip() or "1"
+
+    if opcion == "3":
+        ejecutar_interfaz_grafica()
         return
 
-    tm: TuringMachine
+    mt: MaquinaTuring
 
-    if choice == "1":
+    if opcion == "1":
         print("\nEjemplos disponibles:")
-        examples_keys = list(AVAILABLE_EXAMPLES.keys())
-        for idx, key in enumerate(examples_keys, 1):
-            print(f"  [{idx}] {key}")
-        
-        ex_choice = input(f"Seleccione un ejemplo (1-{len(examples_keys)}) [1]: ").strip() or "1"
+        claves_ejemplos = list(EJEMPLOS_DISPONIBLES.keys())
+        for indice, clave in enumerate(claves_ejemplos, 1):
+            print(f"  [{indice}] {clave}")
+
+        opcion_ejemplo = input(f"Seleccione un ejemplo (1-{len(claves_ejemplos)}) [1]: ").strip() or "1"
         try:
-            selected_key = examples_keys[int(ex_choice) - 1]
-            tm = AVAILABLE_EXAMPLES[selected_key]()
-            print(f"\n✅ Cargado ejemplo: {tm.name}")
+            clave_seleccionada = claves_ejemplos[int(opcion_ejemplo) - 1]
+            mt = EJEMPLOS_DISPONIBLES[clave_seleccionada]()
+            print(f"\n✅ Cargado ejemplo: {mt.nombre}")
         except Exception:
             print("Opción inválida. Cargando ejemplo por defecto.")
-            tm = AVAILABLE_EXAMPLES[examples_keys[0]]()
+            mt = EJEMPLOS_DISPONIBLES[claves_ejemplos[0]]()
     else:
-        name = input("\nNombre del autómata [Mi Máquina]: ").strip() or "Mi Máquina"
+        nombre = input("\nNombre del autómata [Mi Máquina]: ").strip() or "Mi Máquina"
         sigma_str = input("Alfabeto de entrada Σ (separado por comas, ej: 0, 1): ").strip()
         sigma = {s.strip() for s in sigma_str.split(",") if s.strip()}
 
-        blank = input("Símbolo blanco [B]: ").strip() or "B"
+        blanco = input("Símbolo blanco [B]: ").strip() or "B"
 
-        gamma_str = input(f"Símbolo(s) adicionales de cinta Γ (además de Σ y {blank}, ej: X, Y): ").strip()
+        gamma_str = input(f"Símbolo(s) adicionales de cinta Γ (además de Σ y {blanco}, ej: X, Y): ").strip()
         gamma = set(sigma)
-        gamma.add(blank)
+        gamma.add(blanco)
         if gamma_str:
             gamma.update({s.strip() for s in gamma_str.split(",") if s.strip()})
 
         q0 = input("Estado inicial [q0]: ").strip() or "q0"
-        accept_str = input("Estados de aceptación F (separados por comas, ej: q_accept): ").strip()
-        accept_states = {s.strip() for s in accept_str.split(",") if s.strip()}
+        aceptacion_str = input("Estados de aceptación F (separados por comas, ej: q_accept): ").strip()
+        estados_aceptacion = {s.strip() for s in aceptacion_str.split(",") if s.strip()}
 
-        tm = TuringMachine(
-            name=name,
-            input_alphabet=sigma,
-            tape_alphabet=gamma,
-            blank_symbol=blank,
-            initial_state=q0,
-            accept_states=accept_states
+        mt = MaquinaTuring(
+            nombre=nombre,
+            alfabeto_entrada=sigma,
+            alfabeto_cinta=gamma,
+            simbolo_blanco=blanco,
+            estado_inicial=q0,
+            estados_aceptacion=estados_aceptacion
         )
 
         print("\n--- INGRESO DE TABLA DE TRANSICIONES δ ---")
@@ -81,50 +81,50 @@ def run_cli_interactive():
         print("  [1] Línea a línea (ej: q0 0 q0 1 R)")
         print("  [2] Pegar bloque de texto / Matriz CSV")
         print("  [3] Cargar desde archivo CSV o TXT")
-        mode = input("Opción (1/2/3) [1]: ").strip() or "1"
+        modo = input("Opción (1/2/3) [1]: ").strip() or "1"
 
-        if mode == "2":
+        if modo == "2":
             print("\nPegue las transiciones. Escriba 'FIN' en una línea vacía para terminar:")
-            lines = []
+            lineas = []
             while True:
-                line = input()
-                if line.strip().upper() == "FIN":
+                linea = input()
+                if linea.strip().upper() == "FIN":
                     break
-                lines.append(line)
-            raw = "\n".join(lines)
-            ok, msg, count = tm.import_from_text(raw)
-            print(f"Resultado: {msg}")
-        elif mode == "3":
-            csv_path = input("Ruta del archivo CSV o TXT: ").strip()
+                lineas.append(linea)
+            texto_bruto = "\n".join(lineas)
+            ok, mensaje, conteo = mt.importar_desde_texto(texto_bruto)
+            print(f"Resultado: {mensaje}")
+        elif modo == "3":
+            ruta_csv = input("Ruta del archivo CSV o TXT: ").strip()
             try:
-                with open(csv_path, "r", encoding="utf-8") as f:
-                    content = f.read()
-                ok, msg, count = tm.import_from_text(content)
-                print(f"Resultado: {msg}")
-            except Exception as e:
-                print(f"Error al abrir archivo: {e}")
+                with open(ruta_csv, "r", encoding="utf-8") as archivo:
+                    contenido = archivo.read()
+                ok, mensaje, conteo = mt.importar_desde_texto(contenido)
+                print(f"Resultado: {mensaje}")
+            except Exception as error:
+                print(f"Error al abrir archivo: {error}")
         else:
             print("Formato por línea: <estado_origen> <simbolo_leido> <nuevo_estado> <simbolo_escrito> <direccion L/R/S>")
             print("(Presione ENTER en una línea vacía para finalizar el ingreso de transiciones)")
 
             while True:
-                line = input("Transición > ").strip()
-                if not line:
+                linea = input("Transición > ").strip()
+                if not linea:
                     break
-                parts = line.split()
-                if len(parts) != 5:
+                partes = linea.split()
+                if len(partes) != 5:
                     print("Formato incorrecto. Deben ser 5 elementos separados por espacios.")
                     continue
                 try:
-                    tm.add_transition(parts[0], parts[1], parts[2], parts[3], parts[4])
-                    print(f"Transición agregada: δ({parts[0]}, '{parts[1]}') -> ({parts[2]}, '{parts[3]}', {parts[4].upper()})")
-                except Exception as e:
-                    print(f"Error: {e}")
+                    mt.agregar_transicion(partes[0], partes[1], partes[2], partes[3], partes[4])
+                    print(f"Transición agregada: δ({partes[0]}, '{partes[1]}') -> ({partes[2]}, '{partes[3]}', {partes[4].upper()})")
+                except Exception as error:
+                    print(f"Error: {error}")
 
-    is_valid, msgs = tm.validate()
-    if msgs:
+    es_valida, mensajes = mt.validar()
+    if mensajes:
         print("\nValidación:")
-        for m in msgs:
+        for m in mensajes:
             print(f"  - {m}")
 
     while True:
@@ -136,70 +136,70 @@ def run_cli_interactive():
         print("  [4] Exportar tabla de transiciones a CSV")
         print("  [5] Salir")
 
-        opt = input("Elija una opción (1-5): ").strip()
+        opcion_accion = input("Elija una opción (1-5): ").strip()
 
-        if opt == "1":
-            word = input("\nIngrese la palabra a probar: ").strip()
-            print(f"\nSimulando palabra: '{word}'...")
-            accepted, msg, steps = tm.run(word, max_steps=1000)
-            
-            print(f"\nResultado: {'ACEPTADA' if accepted else 'RECHAZADA'}")
-            print(f"Mensaje: {msg}")
-            print(f"Total de pasos: {steps}")
+        if opcion_accion == "1":
+            palabra = input("\nIngrese la palabra a probar: ").strip()
+            print(f"\nSimulando palabra: '{palabra}'...")
+            aceptada, mensaje, pasos = mt.ejecutar(palabra, max_pasos=1000)
+
+            print(f"\nResultado: {'ACEPTADA' if aceptada else 'RECHAZADA'}")
+            print(f"Mensaje: {mensaje}")
+            print(f"Total de pasos: {pasos}")
             print("\nÚltimos 10 pasos de ejecución:")
-            for rec in tm.history[-10:]:
-                print(f"  Paso {rec.step_number:3d} | Estado: {rec.current_state:8s} | Leído: '{rec.read_symbol}' | Cinta: {rec.tape_snapshot}")
+            for registro in mt.historial[-10:]:
+                print(f"  Paso {registro.numero_paso:3d} | Estado: {registro.estado_actual:8s} | Leído: '{registro.simbolo_leido}' | Cinta: {registro.captura_cinta}")
 
-        elif opt == "2":
-            states, symbols, matrix = tm.get_transition_matrix()
-            print(f"\nTABLA DE TRANSICIONES δ PARA: {tm.name}")
-            header = f"{'Estado':<10}" + "".join(f"{s:^18}" for s in symbols)
-            print("-" * len(header))
-            print(header)
-            print("-" * len(header))
-            for st in states:
-                row = f"{st:<10}"
-                for sym in symbols:
-                    val = matrix.get((st, sym), "-")
-                    row += f"{val:^18}"
-                print(row)
-            print("-" * len(header))
+        elif opcion_accion == "2":
+            estados, simbolos, matriz = mt.obtener_matriz_transiciones()
+            print(f"\nTABLA DE TRANSICIONES δ PARA: {mt.nombre}")
+            encabezado = f"{'Estado':<10}" + "".join(f"{s:^18}" for s in simbolos)
+            print("-" * len(encabezado))
+            print(encabezado)
+            print("-" * len(encabezado))
+            for st in estados:
+                fila = f"{st:<10}"
+                for sym in simbolos:
+                    val = matriz.get((st, sym), "-")
+                    fila += f"{val:^18}"
+                print(fila)
+            print("-" * len(encabezado))
 
-        elif opt == "3":
-            filename = input("Nombre de archivo [.json]: ").strip()
-            if not filename.endswith(".json"):
-                filename += ".json"
-            with open(filename, "w", encoding="utf-8") as f:
-                f.write(tm.to_json())
-            print(f"Guardado exitosamente en '{filename}'.")
+        elif opcion_accion == "3":
+            nombre_archivo = input("Nombre de archivo [.json]: ").strip()
+            if not nombre_archivo.endswith(".json"):
+                nombre_archivo += ".json"
+            with open(nombre_archivo, "w", encoding="utf-8") as archivo:
+                archivo.write(mt.a_json())
+            print(f"Guardado exitosamente en '{nombre_archivo}'.")
 
-        elif opt == "4":
-            filename = input("Nombre de archivo CSV [.csv]: ").strip()
-            if not filename.endswith(".csv"):
-                filename += ".csv"
-            with open(filename, "w", encoding="utf-8") as f:
-                f.write(tm.to_csv())
-            print(f"Tabla de transiciones exportada a '{filename}'.")
+        elif opcion_accion == "4":
+            nombre_archivo = input("Nombre de archivo CSV [.csv]: ").strip()
+            if not nombre_archivo.endswith(".csv"):
+                nombre_archivo += ".csv"
+            with open(nombre_archivo, "w", encoding="utf-8") as archivo:
+                archivo.write(mt.a_csv())
+            print(f"Tabla de transiciones exportada a '{nombre_archivo}'.")
 
-        elif opt == "5":
+        elif opcion_accion == "5":
             print("¡Hasta pronto!")
             break
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Simulador y Generador de Máquinas de Turing en Python")
-    parser.add_argument("--cli", action="store_true", help="Iniciar en modo consola (CLI)")
-    args = parser.parse_args()
+def principal():
+    analizador = argparse.ArgumentParser(description="Simulador y Generador de Máquinas de Turing en Python")
+    analizador.add_argument("--cli", action="store_true", help="Iniciar en modo consola (CLI)")
+    argumentos = analizador.parse_args()
 
-    if args.cli:
-        run_cli_interactive()
+    if argumentos.cli:
+        ejecutar_cli_interactivo()
     else:
         try:
-            run_gui()
-        except Exception as e:
-            print(f"No se pudo iniciar la interfaz gráfica ({e}). Cambiando a modo consola...")
-            run_cli_interactive()
+            ejecutar_interfaz_grafica()
+        except Exception as error:
+            print(f"No se pudo iniciar la interfaz gráfica ({error}). Cambiando a modo consola...")
+            ejecutar_cli_interactivo()
 
 
 if __name__ == "__main__":
-    main()
+    principal()

@@ -3,7 +3,7 @@ Módulo del Núcleo de la Máquina de Turing.
 Define la estructura formal, validación y simulación paso a paso.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Tuple, Set, List, Optional
 import json
@@ -12,50 +12,50 @@ import io
 import csv
 
 
-class Direction(str, Enum):
-    LEFT = 'L'
-    RIGHT = 'R'
-    STAY = 'S'
+class Direccion(str, Enum):
+    IZQUIERDA = 'L'
+    DERECHA = 'R'
+    QUIETO = 'S'
 
     @classmethod
-    def from_str(cls, val: str) -> 'Direction':
-        val = val.strip().upper()
-        if val in ('L', 'IZQ', 'IZQUIERDA', '<'):
-            return cls.LEFT
-        elif val in ('R', 'DER', 'DERECHA', '>'):
-            return cls.RIGHT
-        elif val in ('S', 'N', 'QUIETO', 'PARAR', '-'):
-            return cls.STAY
-        raise ValueError(f"Dirección inválida: '{val}'. Use 'L', 'R' o 'S'.")
+    def desde_cadena(cls, valor: str) -> 'Direccion':
+        valor = valor.strip().upper()
+        if valor in ('L', 'IZQ', 'IZQUIERDA', '<'):
+            return cls.IZQUIERDA
+        elif valor in ('R', 'DER', 'DERECHA', '>'):
+            return cls.DERECHA
+        elif valor in ('S', 'N', 'QUIETO', 'PARAR', '-'):
+            return cls.QUIETO
+        raise ValueError(f"Dirección inválida: '{valor}'. Use 'L', 'R' o 'S'.")
 
 
 @dataclass(frozen=True)
-class TransitionKey:
-    state: str
-    symbol: str
+class ClaveTransicion:
+    estado: str
+    simbolo: str
 
 
 @dataclass
-class TransitionValue:
-    next_state: str
-    write_symbol: str
-    direction: Direction
+class ValorTransicion:
+    nuevo_estado: str
+    simbolo_escrito: str
+    direccion: Direccion
 
 
 @dataclass
-class StepRecord:
-    step_number: int
-    current_state: str
-    read_symbol: str
-    next_state: Optional[str]
-    write_symbol: Optional[str]
-    direction: Optional[Direction]
-    head_position: int
-    tape_snapshot: str
-    status_description: str
+class RegistroPaso:
+    numero_paso: int
+    estado_actual: str
+    simbolo_leido: str
+    nuevo_estado: Optional[str]
+    simbolo_escrito: Optional[str]
+    direccion: Optional[Direccion]
+    posicion_cabezal: int
+    captura_cinta: str
+    descripcion_estado: str
 
 
-class TuringMachine:
+class MaquinaTuring:
     """
     Representa una Máquina de Turing determinista formal de una cinta:
     M = (Q, Sigma, Gamma, delta, q0, B, F)
@@ -63,493 +63,490 @@ class TuringMachine:
 
     def __init__(
         self,
-        name: str = "Máquina de Turing",
-        states: Optional[Set[str]] = None,
-        input_alphabet: Optional[Set[str]] = None,
-        tape_alphabet: Optional[Set[str]] = None,
-        blank_symbol: str = "B",
-        initial_state: str = "q0",
-        accept_states: Optional[Set[str]] = None,
-        reject_states: Optional[Set[str]] = None,
+        nombre: str = "Máquina de Turing",
+        estados: Optional[Set[str]] = None,
+        alfabeto_entrada: Optional[Set[str]] = None,
+        alfabeto_cinta: Optional[Set[str]] = None,
+        simbolo_blanco: str = "B",
+        estado_inicial: str = "q0",
+        estados_aceptacion: Optional[Set[str]] = None,
+        estados_rechazo: Optional[Set[str]] = None,
     ):
-        self.name = name
-        self.blank_symbol = blank_symbol if blank_symbol else "B"
-        self.states = set(states) if states else {initial_state}
-        self.input_alphabet = set(input_alphabet) if input_alphabet else set()
-        self.tape_alphabet = set(tape_alphabet) if tape_alphabet else set()
-        self.initial_state = initial_state
-        self.accept_states = set(accept_states) if accept_states else set()
-        self.reject_states = set(reject_states) if reject_states else set()
-        
-        # delta: (state, read_symbol) -> (next_state, write_symbol, direction)
-        self.transitions: Dict[TransitionKey, TransitionValue] = {}
+        self.nombre = nombre
+        self.simbolo_blanco = simbolo_blanco if simbolo_blanco else "B"
+        self.estados = set(estados) if estados else {estado_inicial}
+        self.alfabeto_entrada = set(alfabeto_entrada) if alfabeto_entrada else set()
+        self.alfabeto_cinta = set(alfabeto_cinta) if alfabeto_cinta else set()
+        self.estado_inicial = estado_inicial
+        self.estados_aceptacion = set(estados_aceptacion) if estados_aceptacion else set()
+        self.estados_rechazo = set(estados_rechazo) if estados_rechazo else set()
 
-        # Asegurar consistencia de alfabetos
-        self.tape_alphabet.add(self.blank_symbol)
-        self.tape_alphabet.update(self.input_alphabet)
-        self.states.add(self.initial_state)
-        self.states.update(self.accept_states)
-        self.states.update(self.reject_states)
+        self.transiciones: Dict[ClaveTransicion, ValorTransicion] = {}
 
-        # Estado de simulación
-        self.tape: Dict[int, str] = {}
-        self.head_position: int = 0
-        self.current_state: str = self.initial_state
-        self.step_count: int = 0
-        self.halted: bool = False
-        self.accepted: bool = False
-        self.rejected: bool = False
-        self.history: List[StepRecord] = []
+        self.alfabeto_cinta.add(self.simbolo_blanco)
+        self.alfabeto_cinta.update(self.alfabeto_entrada)
+        self.estados.add(self.estado_inicial)
+        self.estados.update(self.estados_aceptacion)
+        self.estados.update(self.estados_rechazo)
 
-    def add_transition(
+        self.cinta: Dict[int, str] = {}
+        self.posicion_cabezal: int = 0
+        self.estado_actual: str = self.estado_inicial
+        self.contador_pasos: int = 0
+        self.detenida: bool = False
+        self.aceptada: bool = False
+        self.rechazada: bool = False
+        self.historial: List[RegistroPaso] = []
+
+    def agregar_transicion(
         self,
-        state: str,
-        read_symbol: str,
-        next_state: str,
-        write_symbol: str,
-        direction: Direction | str
+        estado: str,
+        simbolo_leido: str,
+        nuevo_estado: str,
+        simbolo_escrito: str,
+        direccion: Direccion | str
     ):
         """Agrega o actualiza una transición en la función delta."""
-        dir_enum = direction if isinstance(direction, Direction) else Direction.from_str(direction)
-        state = state.strip()
-        read_symbol = read_symbol.strip()
-        next_state = next_state.strip()
-        write_symbol = write_symbol.strip()
+        dir_enum = direccion if isinstance(direccion, Direccion) else Direccion.desde_cadena(direccion)
+        estado = estado.strip()
+        simbolo_leido = simbolo_leido.strip()
+        nuevo_estado = nuevo_estado.strip()
+        simbolo_escrito = simbolo_escrito.strip()
 
-        # Registrar estados y símbolos automáticamente si no estaban
-        self.states.add(state)
-        self.states.add(next_state)
-        self.tape_alphabet.add(read_symbol)
-        self.tape_alphabet.add(write_symbol)
+        self.estados.add(estado)
+        self.estados.add(nuevo_estado)
+        self.alfabeto_cinta.add(simbolo_leido)
+        self.alfabeto_cinta.add(simbolo_escrito)
 
-        key = TransitionKey(state, read_symbol)
-        value = TransitionValue(next_state, write_symbol, dir_enum)
-        self.transitions[key] = value
+        clave = ClaveTransicion(estado, simbolo_leido)
+        valor = ValorTransicion(nuevo_estado, simbolo_escrito, dir_enum)
+        self.transiciones[clave] = valor
 
-    def remove_transition(self, state: str, read_symbol: str) -> bool:
+    def eliminar_transicion(self, estado: str, simbolo_leido: str) -> bool:
         """Elimina una transición existente."""
-        key = TransitionKey(state.strip(), read_symbol.strip())
-        if key in self.transitions:
-            del self.transitions[key]
+        clave = ClaveTransicion(estado.strip(), simbolo_leido.strip())
+        if clave in self.transiciones:
+            del self.transiciones[clave]
             return True
         return False
 
-    def clear_transitions(self):
+    def limpiar_transiciones(self):
         """Limpia todas las transiciones."""
-        self.transitions.clear()
+        self.transiciones.clear()
 
-    def validate(self) -> Tuple[bool, List[str]]:
+    def validar(self) -> Tuple[bool, List[str]]:
         """
         Valida formalmente la máquina de Turing.
         Retorna (es_valida, lista_de_advertencias_o_errores).
         """
-        errors = []
+        errores = []
 
-        if not self.states:
-            errors.append("El conjunto de estados Q no puede estar vacío.")
-        if self.initial_state not in self.states:
-            errors.append(f"El estado inicial '{self.initial_state}' no pertenece al conjunto de estados Q.")
-        if self.blank_symbol in self.input_alphabet:
-            errors.append(f"El símbolo blanco '{self.blank_symbol}' no debe pertenecer al alfabeto de entrada Sigma.")
-        if not self.input_alphabet.issubset(self.tape_alphabet):
-            missing = self.input_alphabet - self.tape_alphabet
-            errors.append(f"El alfabeto de entrada Sigma debe ser subconjunto de Gamma. Faltan: {missing}")
-        if self.blank_symbol not in self.tape_alphabet:
-            errors.append(f"El símbolo blanco '{self.blank_symbol}' debe pertenecer al alfabeto de cinta Gamma.")
-        
-        # Validar estados de aceptación
-        if not self.accept_states:
-            errors.append("Se recomienda definir al menos un estado de aceptación.")
-        for s in self.accept_states:
-            if s not in self.states:
-                errors.append(f"El estado de aceptación '{s}' no pertenece a Q.")
+        if not self.estados:
+            errores.append("El conjunto de estados Q no puede estar vacío.")
+        if self.estado_inicial not in self.estados:
+            errores.append(f"El estado inicial '{self.estado_inicial}' no pertenece al conjunto de estados Q.")
+        if self.simbolo_blanco in self.alfabeto_entrada:
+            errores.append(f"El símbolo blanco '{self.simbolo_blanco}' no debe pertenecer al alfabeto de entrada Sigma.")
+        if not self.alfabeto_entrada.issubset(self.alfabeto_cinta):
+            faltantes = self.alfabeto_entrada - self.alfabeto_cinta
+            errores.append(f"El alfabeto de entrada Sigma debe ser subconjunto de Gamma. Faltan: {faltantes}")
+        if self.simbolo_blanco not in self.alfabeto_cinta:
+            errores.append(f"El símbolo blanco '{self.simbolo_blanco}' debe pertenecer al alfabeto de cinta Gamma.")
 
-        # Validar transiciones
-        for key, val in self.transitions.items():
-            if key.state not in self.states:
-                errors.append(f"Transición con estado origen '{key.state}' fuera de Q.")
-            if key.symbol not in self.tape_alphabet:
-                errors.append(f"Transición con símbolo leído '{key.symbol}' fuera de Gamma.")
-            if val.next_state not in self.states:
-                errors.append(f"Transición con estado destino '{val.next_state}' fuera de Q.")
-            if val.write_symbol not in self.tape_alphabet:
-                errors.append(f"Transición con símbolo escrito '{val.write_symbol}' fuera de Gamma.")
+        if not self.estados_aceptacion:
+            errores.append("Se recomienda definir al menos un estado de aceptación.")
+        for s in self.estados_aceptacion:
+            if s not in self.estados:
+                errores.append(f"El estado de aceptación '{s}' no pertenece a Q.")
 
-        is_valid = len(errors) == 0 or all("recomienda" in err for err in errors)
-        return is_valid, errors
+        for clave, valor in self.transiciones.items():
+            if clave.estado not in self.estados:
+                errores.append(f"Transición con estado origen '{clave.estado}' fuera de Q.")
+            if clave.simbolo not in self.alfabeto_cinta:
+                errores.append(f"Transición con símbolo leído '{clave.simbolo}' fuera de Gamma.")
+            if valor.nuevo_estado not in self.estados:
+                errores.append(f"Transición con estado destino '{valor.nuevo_estado}' fuera de Q.")
+            if valor.simbolo_escrito not in self.alfabeto_cinta:
+                errores.append(f"Transición con símbolo escrito '{valor.simbolo_escrito}' fuera de Gamma.")
 
-    def load_input(self, input_string: str = ""):
+        es_valida = len(errores) == 0 or all("recomienda" in err for err in errores)
+        return es_valida, errores
+
+    def cargar_entrada(self, cadena_entrada: str = ""):
         """Carga una palabra de entrada en la cinta y reinicia la máquina."""
-        self.tape.clear()
-        self.head_position = 0
-        self.current_state = self.initial_state
-        self.step_count = 0
-        self.halted = False
-        self.accepted = False
-        self.rejected = False
-        self.history.clear()
+        self.cinta.clear()
+        self.posicion_cabezal = 0
+        self.estado_actual = self.estado_inicial
+        self.contador_pasos = 0
+        self.detenida = False
+        self.aceptada = False
+        self.rechazada = False
+        self.historial.clear()
 
-        # Escribir palabra en la cinta comenzando en índice 0
-        for i, char in enumerate(input_string):
-            self.tape[i] = char
+        for i, caracter in enumerate(cadena_entrada):
+            self.cinta[i] = caracter
 
-        # Si la palabra está vacía o es el primer paso, registrar estado inicial
-        initial_symbol = self.get_tape_symbol(0)
-        self.history.append(
-            StepRecord(
-                step_number=0,
-                current_state=self.current_state,
-                read_symbol=initial_symbol,
-                next_state=None,
-                write_symbol=None,
-                direction=None,
-                head_position=0,
-                tape_snapshot=self.get_tape_string(),
-                status_description="Inicio de la simulación"
+        simbolo_inicial = self.obtener_simbolo_cinta(0)
+        self.historial.append(
+            RegistroPaso(
+                numero_paso=0,
+                estado_actual=self.estado_actual,
+                simbolo_leido=simbolo_inicial,
+                nuevo_estado=None,
+                simbolo_escrito=None,
+                direccion=None,
+                posicion_cabezal=0,
+                captura_cinta=self.obtener_cadena_cinta(),
+                descripcion_estado="Inicio de la simulación"
             )
         )
 
-        # Si ya inicia en estado de aceptación
-        if self.current_state in self.accept_states:
-            self.halted = True
-            self.accepted = True
-            self.history[-1].status_description = "Parada: Cadena aceptada (Estado inicial es de aceptación)."
+        if self.estado_actual in self.estados_aceptacion:
+            self.detenida = True
+            self.aceptada = True
+            self.historial[-1].descripcion_estado = "Parada: Cadena aceptada (Estado inicial es de aceptación)."
 
-    def get_tape_symbol(self, pos: int) -> str:
+    def obtener_simbolo_cinta(self, posicion: int) -> str:
         """Obtiene el símbolo en una posición dada de la cinta (o blanco)."""
-        return self.tape.get(pos, self.blank_symbol)
+        return self.cinta.get(posicion, self.simbolo_blanco)
 
-    def get_tape_bounds(self) -> Tuple[int, int]:
+    def obtener_limites_cinta(self) -> Tuple[int, int]:
         """Calcula el rango [min_idx, max_idx] con símbolos no blancos y la cabeza."""
-        indices = list(self.tape.keys())
-        indices.append(self.head_position)
-        min_idx = min(indices)
-        max_idx = max(indices)
-        # Añadir al menos 1 celda de margen a cada lado
-        return min_idx - 1, max_idx + 1
+        indices = list(self.cinta.keys())
+        indices.append(self.posicion_cabezal)
+        min_indice = min(indices)
+        max_indice = max(indices)
+        return min_indice - 1, max_indice + 1
 
-    def get_tape_string(self) -> str:
+    def obtener_cadena_cinta(self) -> str:
         """Retorna una representación compacta de la cinta."""
-        min_idx, max_idx = self.get_tape_bounds()
-        chars = []
-        for i in range(min_idx, max_idx + 1):
-            char = self.get_tape_symbol(i)
-            if i == self.head_position:
-                chars.append(f"[{char}]")
+        min_indice, max_indice = self.obtener_limites_cinta()
+        caracteres = []
+        for i in range(min_indice, max_indice + 1):
+            caracter = self.obtener_simbolo_cinta(i)
+            if i == self.posicion_cabezal:
+                caracteres.append(f"[{caracter}]")
             else:
-                chars.append(char)
-        return "".join(chars)
+                caracteres.append(caracter)
+        return "".join(caracteres)
 
-    def step(self) -> Tuple[bool, str]:
+    def ejecutar_paso(self) -> Tuple[bool, str]:
         """
         Ejecuta un solo paso de la Máquina de Turing.
         Retorna (continua_ejecucion, mensaje_estado).
         """
-        if self.halted:
-            if self.accepted:
+        if self.detenida:
+            if self.aceptada:
                 return False, "La máquina ya se detuvo: Cadena ACEPTADA."
-            elif self.rejected:
+            elif self.rechazada:
                 return False, "La máquina ya se detuvo: Cadena RECHAZADA."
             return False, "La máquina ya se detuvo."
 
-        current_symbol = self.get_tape_symbol(self.head_position)
-        key = TransitionKey(self.current_state, current_symbol)
+        simbolo_actual = self.obtener_simbolo_cinta(self.posicion_cabezal)
+        clave = ClaveTransicion(self.estado_actual, simbolo_actual)
 
-        if key not in self.transitions:
-            # No hay transición definida -> Parada
-            self.halted = True
-            if self.current_state in self.accept_states:
-                self.accepted = True
-                msg = f"Parada en estado de aceptación '{self.current_state}'. Cadena ACEPTADA."
+        if clave not in self.transiciones:
+            self.detenida = True
+            if self.estado_actual in self.estados_aceptacion:
+                self.aceptada = True
+                mensaje = f"Parada en estado de aceptación '{self.estado_actual}'. Cadena ACEPTADA."
             else:
-                self.rejected = True
-                msg = f"No hay transición para ({self.current_state}, '{current_symbol}'). Cadena RECHAZADA."
-            
-            if self.history:
-                self.history[-1].status_description = msg
-            return False, msg
+                self.rechazada = True
+                mensaje = f"No hay transición para ({self.estado_actual}, '{simbolo_actual}'). Cadena RECHAZADA."
 
-        trans = self.transitions[key]
-        self.step_count += 1
+            if self.historial:
+                self.historial[-1].descripcion_estado = mensaje
+            return False, mensaje
 
-        # Escribir en la cinta
-        self.tape[self.head_position] = trans.write_symbol
+        transicion = self.transiciones[clave]
+        self.contador_pasos += 1
 
-        # Mover cabezal
-        prev_head = self.head_position
-        if trans.direction == Direction.LEFT:
-            self.head_position -= 1
-        elif trans.direction == Direction.RIGHT:
-            self.head_position += 1
+        self.cinta[self.posicion_cabezal] = transicion.simbolo_escrito
 
-        # Cambiar de estado
-        prev_state = self.current_state
-        self.current_state = trans.next_state
+        if transicion.direccion == Direccion.IZQUIERDA:
+            self.posicion_cabezal -= 1
+        elif transicion.direccion == Direccion.DERECHA:
+            self.posicion_cabezal += 1
 
-        msg = f"Paso {self.step_count}: ({prev_state}, '{current_symbol}') -> ({trans.next_state}, '{trans.write_symbol}', {trans.direction.value})"
+        estado_anterior = self.estado_actual
+        self.estado_actual = transicion.nuevo_estado
 
-        # Verificar si llegó a estado de aceptación o rechazo
-        if self.current_state in self.accept_states:
-            self.halted = True
-            self.accepted = True
-            msg += f" | Estado de Aceptación alcanzado: {self.current_state}. Cadena ACEPTADA."
-        elif self.current_state in self.reject_states:
-            self.halted = True
-            self.rejected = True
-            msg += f" | Estado de Rechazo alcanzado: {self.current_state}. Cadena RECHAZADA."
+        mensaje = f"Paso {self.contador_pasos}: ({estado_anterior}, '{simbolo_actual}') -> ({transicion.nuevo_estado}, '{transicion.simbolo_escrito}', {transicion.direccion.value})"
 
-        # Registrar paso
-        self.history.append(
-            StepRecord(
-                step_number=self.step_count,
-                current_state=self.current_state,
-                read_symbol=self.get_tape_symbol(self.head_position),
-                next_state=trans.next_state,
-                write_symbol=trans.write_symbol,
-                direction=trans.direction,
-                head_position=self.head_position,
-                tape_snapshot=self.get_tape_string(),
-                status_description=msg
+        if self.estado_actual in self.estados_aceptacion:
+            self.detenida = True
+            self.aceptada = True
+            mensaje += f" | Estado de Aceptación alcanzado: {self.estado_actual}. Cadena ACEPTADA."
+        elif self.estado_actual in self.estados_rechazo:
+            self.detenida = True
+            self.rechazada = True
+            mensaje += f" | Estado de Rechazo alcanzado: {self.estado_actual}. Cadena RECHAZADA."
+
+        self.historial.append(
+            RegistroPaso(
+                numero_paso=self.contador_pasos,
+                estado_actual=self.estado_actual,
+                simbolo_leido=self.obtener_simbolo_cinta(self.posicion_cabezal),
+                nuevo_estado=transicion.nuevo_estado,
+                simbolo_escrito=transicion.simbolo_escrito,
+                direccion=transicion.direccion,
+                posicion_cabezal=self.posicion_cabezal,
+                captura_cinta=self.obtener_cadena_cinta(),
+                descripcion_estado=mensaje
             )
         )
 
-        return not self.halted, msg
+        return not self.detenida, mensaje
 
-    def run(self, input_string: str = "", max_steps: int = 2000) -> Tuple[bool, str, int]:
+    def ejecutar(self, cadena_entrada: str = "", max_pasos: int = 2000) -> Tuple[bool, str, int]:
         """
-        Ejecuta la máquina completa sobre una palabra dada hasta que se detenga o supere max_steps.
+        Ejecuta la máquina completa sobre una palabra dada hasta que se detenga o supere max_pasos.
         Retorna (es_aceptada, mensaje_final, total_pasos).
         """
-        self.load_input(input_string)
-        while not self.halted and self.step_count < max_steps:
-            running, _ = self.step()
-            if not running:
+        self.cargar_entrada(cadena_entrada)
+        while not self.detenida and self.contador_pasos < max_pasos:
+            continua, _ = self.ejecutar_paso()
+            if not continua:
                 break
 
-        if not self.halted:
-            self.halted = True
-            self.rejected = True
-            return False, f"Se superó el límite de {max_steps} pasos (posible bucle infinito).", self.step_count
+        if not self.detenida:
+            self.detenida = True
+            self.rechazada = True
+            return False, f"Se superó el límite de {max_pasos} pasos (posible bucle infinito).", self.contador_pasos
 
-        result_msg = "ACEPTADA" if self.accepted else "RECHAZADA"
-        return self.accepted, f"Ejecución finalizada en {self.step_count} pasos: {result_msg}", self.step_count
+        resultado_texto = "ACEPTADA" if self.aceptada else "RECHAZADA"
+        return self.aceptada, f"Ejecución finalizada en {self.contador_pasos} pasos: {resultado_texto}", self.contador_pasos
 
-    def to_dict(self) -> dict:
+    def a_diccionario(self) -> dict:
         """Serializa la máquina a un diccionario."""
         return {
-            "name": self.name,
-            "blank_symbol": self.blank_symbol,
-            "input_alphabet": sorted(list(self.input_alphabet)),
-            "tape_alphabet": sorted(list(self.tape_alphabet)),
-            "states": sorted(list(self.states)),
-            "initial_state": self.initial_state,
-            "accept_states": sorted(list(self.accept_states)),
-            "reject_states": sorted(list(self.reject_states)),
-            "transitions": [
+            "nombre": self.nombre,
+            "simbolo_blanco": self.simbolo_blanco,
+            "alfabeto_entrada": sorted(list(self.alfabeto_entrada)),
+            "alfabeto_cinta": sorted(list(self.alfabeto_cinta)),
+            "estados": sorted(list(self.estados)),
+            "estado_inicial": self.estado_inicial,
+            "estados_aceptacion": sorted(list(self.estados_aceptacion)),
+            "estados_rechazo": sorted(list(self.estados_rechazo)),
+            "transiciones": [
                 {
-                    "state": key.state,
-                    "read_symbol": key.symbol,
-                    "next_state": val.next_state,
-                    "write_symbol": val.write_symbol,
-                    "direction": val.direction.value,
+                    "estado": clave.estado,
+                    "simbolo_leido": clave.simbolo,
+                    "nuevo_estado": valor.nuevo_estado,
+                    "simbolo_escrito": valor.simbolo_escrito,
+                    "direccion": valor.direccion.value,
                 }
-                for key, val in sorted(self.transitions.items(), key=lambda x: (x[0].state, x[0].symbol))
+                for clave, valor in sorted(self.transiciones.items(), key=lambda x: (x[0].estado, x[0].simbolo))
             ]
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'TuringMachine':
+    def desde_diccionario(cls, datos: dict) -> 'MaquinaTuring':
         """Crea una Máquina de Turing a partir de un diccionario."""
-        tm = cls(
-            name=data.get("name", "Máquina de Turing"),
-            states=set(data.get("states", [])),
-            input_alphabet=set(data.get("input_alphabet", [])),
-            tape_alphabet=set(data.get("tape_alphabet", [])),
-            blank_symbol=data.get("blank_symbol", "B"),
-            initial_state=data.get("initial_state", "q0"),
-            accept_states=set(data.get("accept_states", [])),
-            reject_states=set(data.get("reject_states", [])),
-        )
-        for t in data.get("transitions", []):
-            tm.add_transition(
-                state=t["state"],
-                read_symbol=t["read_symbol"],
-                next_state=t["next_state"],
-                write_symbol=t["write_symbol"],
-                direction=t["direction"],
-            )
-        return tm
+        nombre = datos.get("nombre") or datos.get("name", "Máquina de Turing")
+        simbolo_blanco = datos.get("simbolo_blanco") or datos.get("blank_symbol", "B")
+        alfabeto_entrada = set(datos.get("alfabeto_entrada") or datos.get("input_alphabet", []))
+        alfabeto_cinta = set(datos.get("alfabeto_cinta") or datos.get("tape_alphabet", []))
+        estados = set(datos.get("estados") or datos.get("states", []))
+        estado_inicial = datos.get("estado_inicial") or datos.get("initial_state", "q0")
+        estados_aceptacion = set(datos.get("estados_aceptacion") or datos.get("accept_states", []))
+        estados_rechazo = set(datos.get("estados_rechazo") or datos.get("reject_states", []))
 
-    def to_json(self, indent: int = 2) -> str:
+        mt = cls(
+            nombre=nombre,
+            estados=estados,
+            alfabeto_entrada=alfabeto_entrada,
+            alfabeto_cinta=alfabeto_cinta,
+            simbolo_blanco=simbolo_blanco,
+            estado_inicial=estado_inicial,
+            estados_aceptacion=estados_aceptacion,
+            estados_rechazo=estados_rechazo,
+        )
+        for t in datos.get("transiciones", []):
+            est = t.get("estado") or t.get("state")
+            r_sym = t.get("simbolo_leido") or t.get("read_symbol")
+            n_est = t.get("nuevo_estado") or t.get("next_state")
+            w_sym = t.get("simbolo_escrito") or t.get("write_symbol")
+            d = t.get("direccion") or t.get("direction")
+            mt.agregar_transicion(
+                estado=est,
+                simbolo_leido=r_sym,
+                nuevo_estado=n_est,
+                simbolo_escrito=w_sym,
+                direccion=d,
+            )
+        return mt
+
+    def a_json(self, sangria: int = 2) -> str:
         """Exporta la máquina como cadena JSON."""
-        return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False)
+        return json.dumps(self.a_diccionario(), indent=sangria, ensure_ascii=False)
 
     @classmethod
-    def from_json(cls, json_str: str) -> 'TuringMachine':
+    def desde_json(cls, cadena_json: str) -> 'MaquinaTuring':
         """Carga la máquina desde una cadena JSON."""
-        return cls.from_dict(json.loads(json_str))
+        return cls.desde_diccionario(json.loads(cadena_json))
 
-    def get_transition_matrix(self) -> Tuple[List[str], List[str], Dict[Tuple[str, str], str]]:
+    def obtener_matriz_transiciones(self) -> Tuple[List[str], List[str], Dict[Tuple[str, str], str]]:
         """
         Retorna la tabla de transiciones en forma de matriz:
         (estados_ordenados, simbolos_cinta_ordenados, celda: (estado, simbolo) -> "q',w,D")
         """
-        states = sorted(list(self.states))
-        symbols = sorted(list(self.tape_alphabet))
-        matrix: Dict[Tuple[str, str], str] = {}
+        estados = sorted(list(self.estados))
+        simbolos = sorted(list(self.alfabeto_cinta))
+        matriz: Dict[Tuple[str, str], str] = {}
 
-        for key, val in self.transitions.items():
-            matrix[(key.state, key.symbol)] = f"({val.next_state}, {val.write_symbol}, {val.direction.value})"
+        for clave, valor in self.transiciones.items():
+            matriz[(clave.estado, clave.simbolo)] = f"({valor.nuevo_estado}, {valor.simbolo_escrito}, {valor.direccion.value})"
 
-        return states, symbols, matrix
+        return estados, simbolos, matriz
 
     @staticmethod
-    def parse_transition_cell(cell_str: str) -> Optional[Tuple[str, str, Direction]]:
-        s = cell_str.strip()
+    def analizar_celda_transicion(cadena_celda: str) -> Optional[Tuple[str, str, Direccion]]:
+        s = cadena_celda.strip()
         if not s or s in ('-', '—', 'none', 'null', '/', 'lambda', 'eps'):
             return None
         s = s.strip('()[]{}<>')
-        parts = [p.strip() for p in re.split(r'[,;/\s]+', s) if p.strip()]
-        if len(parts) == 3:
-            next_st, write_sym, dir_str = parts
-            return next_st, write_sym, Direction.from_str(dir_str)
-        elif len(parts) == 1:
-            raise ValueError(f"La celda '{cell_str}' debe incluir (nuevo_estado, símbolo_escrito, dirección L/R/S).")
-        raise ValueError(f"Formato no reconocido en celda: '{cell_str}'. Se esperaba (estado, símbolo, dirección).")
+        partes = [p.strip() for p in re.split(r'[,;/\s]+', s) if p.strip()]
+        if len(partes) == 3:
+            nuevo_est, simb_escrito, dir_cadena = partes
+            return nuevo_est, simb_escrito, Direccion.desde_cadena(dir_cadena)
+        elif len(partes) == 1:
+            raise ValueError(f"La celda '{cadena_celda}' debe incluir (nuevo_estado, símbolo_escrito, dirección L/R/S).")
+        raise ValueError(f"Formato no reconocido en celda: '{cadena_celda}'. Se esperaba (estado, símbolo, dirección).")
 
     @staticmethod
-    def smart_split_row(row_str: str) -> List[str]:
-        row_str = row_str.strip()
-        if '\t' in row_str:
-            return [c.strip().strip('"\'') for c in row_str.split('\t')]
-        if ';' in row_str and '(' not in row_str:
-            return [c.strip().strip('"\'') for c in row_str.split(';')]
+    def separar_fila_inteligente(fila_str: str) -> List[str]:
+        fila_str = fila_str.strip()
+        if '\t' in fila_str:
+            return [c.strip().strip('"\'') for c in fila_str.split('\t')]
+        if ';' in fila_str and '(' not in fila_str:
+            return [c.strip().strip('"\'') for c in fila_str.split(';')]
 
-        tokens = []
-        current = []
-        in_paren = 0
-        for ch in row_str:
+        elementos = []
+        actual = []
+        en_parentesis = 0
+        for ch in fila_str:
             if ch in '([{<':
-                in_paren += 1
-                current.append(ch)
+                en_parentesis += 1
+                actual.append(ch)
             elif ch in ')]}>':
-                in_paren = max(0, in_paren - 1)
-                current.append(ch)
-            elif (ch == ',' or ch == ';') and in_paren == 0:
-                token = ''.join(current).strip().strip('"\'')
-                tokens.append(token)
-                current = []
+                en_parentesis = max(0, en_parentesis - 1)
+                actual.append(ch)
+            elif (ch == ',' or ch == ';') and en_parentesis == 0:
+                token = ''.join(actual).strip().strip('"\'')
+                elementos.append(token)
+                actual = []
             else:
-                current.append(ch)
-        tokens.append(''.join(current).strip().strip('"\''))
-        return tokens
+                actual.append(ch)
+        elementos.append(''.join(actual).strip().strip('"\''))
+        return elementos
 
-    def set_matrix_transitions(
+    def establecer_transiciones_matriz(
         self,
-        matrix_data: Dict[Tuple[str, str], str],
-        clear_existing: bool = True
+        datos_matriz: Dict[Tuple[str, str], str],
+        limpiar_existentes: bool = True
     ) -> Tuple[int, List[str]]:
-        if clear_existing:
-            self.transitions.clear()
+        if limpiar_existentes:
+            self.transiciones.clear()
 
-        added = 0
-        errors = []
+        agregadas = 0
+        errores = []
 
-        for (st, sym), cell_val in matrix_data.items():
-            if not cell_val or not cell_val.strip():
+        for (est, sym), valor_celda in datos_matriz.items():
+            if not valor_celda or not valor_celda.strip():
                 continue
             try:
-                parsed = self.parse_transition_cell(cell_val)
-                if parsed:
-                    next_st, w_sym, d = parsed
-                    self.add_transition(st, sym, next_st, w_sym, d)
-                    added += 1
+                analizada = self.analizar_celda_transicion(valor_celda)
+                if analizada:
+                    nuevo_est, w_sym, d = analizada
+                    self.agregar_transicion(est, sym, nuevo_est, w_sym, d)
+                    agregadas += 1
             except Exception as e:
-                errors.append(f"Error en celda ({st}, '{sym}'): {e}")
+                errores.append(f"Error en celda ({est}, '{sym}'): {e}")
 
-        return added, errors
+        return agregadas, errores
 
-    def to_csv(self) -> str:
-        states = sorted(list(self.states))
-        symbols = sorted(list(self.tape_alphabet))
-        _, _, matrix = self.get_transition_matrix()
+    def a_csv(self) -> str:
+        estados = sorted(list(self.estados))
+        simbolos = sorted(list(self.alfabeto_cinta))
+        _, _, matriz = self.obtener_matriz_transiciones()
 
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow(["Estado"] + symbols)
+        salida = io.StringIO()
+        escritor = csv.writer(salida)
+        escritor.writerow(["Estado"] + simbolos)
 
-        for st in states:
-            row = [st]
-            for sym in symbols:
-                cell_val = matrix.get((st, sym), "")
-                row.append(cell_val)
-            writer.writerow(row)
+        for est in estados:
+            fila = [est]
+            for sym in simbolos:
+                valor_celda = matriz.get((est, sym), "")
+                fila.append(valor_celda)
+            escritor.writerow(fila)
 
-        return output.getvalue()
+        return salida.getvalue()
 
-    def import_from_text(self, raw_text: str, clear_existing: bool = True) -> Tuple[bool, str, int]:
-        lines = [l.strip() for l in raw_text.splitlines() if l.strip() and not l.strip().startswith("#")]
-        if not lines:
+    def importar_desde_texto(self, texto_bruto: str, limpiar_existentes: bool = True) -> Tuple[bool, str, int]:
+        lineas = [l.strip() for l in texto_bruto.splitlines() if l.strip() and not l.strip().startswith("#")]
+        if not lineas:
             return False, "El texto proporcionado está vacío.", 0
 
-        if clear_existing:
-            self.transitions.clear()
+        if limpiar_existentes:
+            self.transiciones.clear()
 
-        first_row = self.smart_split_row(lines[0])
-        is_matrix = len(first_row) >= 2 and (
-            first_row[0].lower() in ("estado", "state", "q", "estados", "q/σ", "q/sigma", "q\\sigma")
-            or any(s in self.tape_alphabet for s in first_row[1:])
+        primera_fila = self.separar_fila_inteligente(lineas[0])
+        es_matriz = len(primera_fila) >= 2 and (
+            primera_fila[0].lower() in ("estado", "state", "q", "estados", "q/σ", "q/sigma", "q\\sigma")
+            or any(s in self.alfabeto_cinta for s in primera_fila[1:])
         )
 
-        added = 0
-        errors = []
+        agregadas = 0
+        errores = []
 
-        if is_matrix:
-            symbols = [s for s in first_row[1:] if s]
-            for sym in symbols:
-                self.tape_alphabet.add(sym)
+        if es_matriz:
+            simbolos = [s for s in primera_fila[1:] if s]
+            for sym in simbolos:
+                self.alfabeto_cinta.add(sym)
 
-            for line in lines[1:]:
-                row = self.smart_split_row(line)
-                if not row or not row[0]:
+            for linea in lineas[1:]:
+                fila = self.separar_fila_inteligente(linea)
+                if not fila or not fila[0]:
                     continue
-                state = row[0]
-                self.states.add(state)
-                for col_idx, cell in enumerate(row[1:]):
-                    if col_idx < len(symbols):
-                        sym = symbols[col_idx]
-                        if cell.strip():
+                estado = fila[0]
+                self.estados.add(estado)
+                for col_idx, celda in enumerate(fila[1:]):
+                    if col_idx < len(simbolos):
+                        sym = simbolos[col_idx]
+                        if celda.strip():
                             try:
-                                parsed = self.parse_transition_cell(cell)
-                                if parsed:
-                                    next_st, w_sym, d = parsed
-                                    self.add_transition(state, sym, next_st, w_sym, d)
-                                    added += 1
+                                analizada = self.analizar_celda_transicion(celda)
+                                if analizada:
+                                    nuevo_est, w_sym, d = analizada
+                                    self.agregar_transicion(estado, sym, nuevo_est, w_sym, d)
+                                    agregadas += 1
                             except Exception as e:
-                                errors.append(f"Fila {state}, col '{sym}': {e}")
+                                errores.append(f"Fila {estado}, col '{sym}': {e}")
 
-            msg = f"Se cargaron con éxito {added} transiciones desde la matriz 2D."
-            if errors:
-                msg += f" (Con {len(errors)} advertencias: {'; '.join(errors[:3])})"
-            return True, msg, added
+            msg = f"Se cargaron con éxito {agregadas} transiciones desde la matriz 2D."
+            if errores:
+                msg += f" (Con {len(errores)} advertencias: {'; '.join(errores[:3])})"
+            return True, msg, agregadas
 
-        for line_num, line in enumerate(lines, 1):
-            cleaned = re.sub(r'[\(\)\[\]\->=,;]+', ' ', line)
-            parts = cleaned.split()
-            if len(parts) >= 5:
-                st, r_sym, next_st, w_sym, d_str = parts[:5]
+        for num_linea, linea in enumerate(lineas, 1):
+            limpia = re.sub(r'[\(\)\[\]\->=,;]+', ' ', linea)
+            partes = limpia.split()
+            if len(partes) >= 5:
+                est, r_sym, nuevo_est, w_sym, d_str = partes[:5]
                 try:
-                    self.add_transition(st, r_sym, next_st, w_sym, d_str)
-                    added += 1
+                    self.agregar_transicion(est, r_sym, nuevo_est, w_sym, d_str)
+                    agregadas += 1
                 except Exception as e:
-                    errors.append(f"Línea {line_num} ('{line}'): {e}")
+                    errores.append(f"Línea {num_linea} ('{linea}'): {e}")
             else:
-                errors.append(f"Línea {line_num}: No tiene 5 campos requeridos ({line})")
+                errores.append(f"Línea {num_linea}: No tiene 5 campos requeridos ({linea})")
 
-        if added > 0:
-            msg = f"Se cargaron con éxito {added} transiciones desde la lista."
-            if errors:
-                msg += f" (Se omitieron {len(errors)} líneas con advertencias)."
-            return True, msg, added
+        if agregadas > 0:
+            msg = f"Se cargaron con éxito {agregadas} transiciones desde la lista."
+            if errores:
+                msg += f" (Se omitieron {len(errores)} líneas con advertencias)."
+            return True, msg, agregadas
         else:
-            return False, f"No se pudo interpretar el formato de las transiciones. Errores: {'; '.join(errors[:3])}", 0
+            return False, f"No se pudo interpretar el formato de las transiciones. Errores: {'; '.join(errores[:3])}", 0

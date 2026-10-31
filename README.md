@@ -111,32 +111,32 @@ Proyecto automatas/
 
 ## 📜 Formato de Archivos JSON
 
-Los autómatas pueden guardarse y cargarse fácilmente mediante archivos `.json` con la siguiente estructura:
+Los autómatas pueden guardarse y cargarse fácilmente mediante archivos `.json` con la siguiente estructura (soporta tanto nombres en español como en inglés):
 
 ```json
 {
-  "name": "Incrementador Binario (w + 1)",
-  "blank_symbol": "B",
-  "input_alphabet": ["0", "1"],
-  "tape_alphabet": ["0", "1", "B"],
-  "states": ["q0", "q1", "q_accept"],
-  "initial_state": "q0",
-  "accept_states": ["q_accept"],
-  "reject_states": [],
-  "transitions": [
+  "nombre": "Incrementador Binario (w + 1)",
+  "simbolo_blanco": "B",
+  "alfabeto_entrada": ["0", "1"],
+  "alfabeto_cinta": ["0", "1", "B"],
+  "estados": ["q0", "q1", "q_accept"],
+  "estado_inicial": "q0",
+  "estados_aceptacion": ["q_accept"],
+  "estados_rechazo": [],
+  "transiciones": [
     {
-      "state": "q0",
-      "read_symbol": "0",
-      "next_state": "q0",
-      "write_symbol": "0",
-      "direction": "R"
+      "estado": "q0",
+      "simbolo_leido": "0",
+      "nuevo_estado": "q0",
+      "simbolo_escrito": "0",
+      "direccion": "R"
     },
     {
-      "state": "q0",
-      "read_symbol": "B",
-      "next_state": "q1",
-      "write_symbol": "B",
-      "direction": "L"
+      "estado": "q0",
+      "simbolo_leido": "B",
+      "nuevo_estado": "q1",
+      "simbolo_escrito": "B",
+      "direccion": "L"
     }
   ]
 }
