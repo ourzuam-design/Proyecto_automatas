@@ -46,14 +46,6 @@ class ClaveTransicion:
     estado: str
     simbolo: str
 
-    @property
-    def state(self) -> str:
-        return self.estado
-
-    @property
-    def symbol(self) -> str:
-        return self.simbolo
-
 
 # Alias para compatibilidad
 TransitionKey = ClaveTransicion
@@ -64,18 +56,6 @@ class ValorTransicion:
     nuevo_estado: str
     simbolo_escrito: str
     direccion: Direccion
-
-    @property
-    def next_state(self) -> str:
-        return self.nuevo_estado
-
-    @property
-    def write_symbol(self) -> str:
-        return self.simbolo_escrito
-
-    @property
-    def direction(self) -> Direccion:
-        return self.direccion
 
 
 # Alias para compatibilidad
@@ -94,56 +74,12 @@ class RegistroPaso:
     captura_cinta: str
     descripcion_estado: str
 
-    @property
-    def step_number(self) -> int:
-        return self.numero_paso
-
-    @property
-    def current_state(self) -> str:
-        return self.estado_actual
-
-    @property
-    def read_symbol(self) -> str:
-        return self.simbolo_leido
-
-    @property
-    def next_state(self) -> Optional[str]:
-        return self.nuevo_estado
-
-    @property
-    def write_symbol(self) -> Optional[str]:
-        return self.simbolo_escrito
-
-    @property
-    def direction(self) -> Optional[Direccion]:
-        return self.direccion
-
-    @property
-    def head_position(self) -> int:
-        return self.posicion_cabezal
-
-    @property
-    def tape_snapshot(self) -> str:
-        return self.captura_cinta
-
-    @property
-    def status_description(self) -> str:
-        return self.descripcion_estado
-
-    @status_description.setter
-    def status_description(self, valor: str):
-        self.descripcion_estado = valor
-
 
 # Alias para compatibilidad
 StepRecord = RegistroPaso
 
 
 class MaquinaTuring:
-    """
-    Representa una Máquina de Turing determinista formal de una cinta:
-    M = (Q, Sigma, Gamma, delta, q0, B, F)
-    """
 
     def __init__(
         self,
@@ -155,36 +91,15 @@ class MaquinaTuring:
         estado_inicial: str = "q0",
         estados_aceptacion: Optional[Set[str]] = None,
         estados_rechazo: Optional[Set[str]] = None,
-        # Parámetros alternativos para compatibilidad
-        name: Optional[str] = None,
-        states: Optional[Set[str]] = None,
-        input_alphabet: Optional[Set[str]] = None,
-        tape_alphabet: Optional[Set[str]] = None,
-        blank_symbol: Optional[str] = None,
-        initial_state: Optional[str] = None,
-        accept_states: Optional[Set[str]] = None,
-        reject_states: Optional[Set[str]] = None,
     ):
-        self.nombre = name if name is not None else nombre
-        blanco = blank_symbol if blank_symbol is not None else simbolo_blanco
-        self.simbolo_blanco = blanco if blanco else "B"
-
-        estados_base = states if states is not None else estados
-        self.estados = set(estados_base) if estados_base else {initial_state or estado_inicial}
-
-        sigma_base = input_alphabet if input_alphabet is not None else alfabeto_entrada
-        self.alfabeto_entrada = set(sigma_base) if sigma_base else set()
-
-        gamma_base = tape_alphabet if tape_alphabet is not None else alfabeto_cinta
-        self.alfabeto_cinta = set(gamma_base) if gamma_base else set()
-
-        self.estado_inicial = initial_state if initial_state is not None else estado_inicial
-
-        aceptacion_base = accept_states if accept_states is not None else estados_aceptacion
-        self.estados_aceptacion = set(aceptacion_base) if aceptacion_base else set()
-
-        rechazo_base = reject_states if reject_states is not None else estados_rechazo
-        self.estados_rechazo = set(rechazo_base) if rechazo_base else set()
+        self.nombre = nombre
+        self.simbolo_blanco = simbolo_blanco if simbolo_blanco else "B"
+        self.estados = set(estados) if estados else {estado_inicial}
+        self.alfabeto_entrada = set(alfabeto_entrada) if alfabeto_entrada else set()
+        self.alfabeto_cinta = set(alfabeto_cinta) if alfabeto_cinta else set()
+        self.estado_inicial = estado_inicial
+        self.estados_aceptacion = set(estados_aceptacion) if estados_aceptacion else set()
+        self.estados_rechazo = set(estados_rechazo) if estados_rechazo else set()
 
         self.transiciones: Dict[ClaveTransicion, ValorTransicion] = {}
 
@@ -202,146 +117,6 @@ class MaquinaTuring:
         self.aceptada: bool = False
         self.rechazada: bool = False
         self.historial: List[RegistroPaso] = []
-
-    # ==========================================
-    # Propiedades para compatibilidad en inglés
-    # ==========================================
-    @property
-    def name(self) -> str:
-        return self.nombre
-
-    @name.setter
-    def name(self, valor: str):
-        self.nombre = valor
-
-    @property
-    def blank_symbol(self) -> str:
-        return self.simbolo_blanco
-
-    @blank_symbol.setter
-    def blank_symbol(self, valor: str):
-        self.simbolo_blanco = valor
-
-    @property
-    def states(self) -> Set[str]:
-        return self.estados
-
-    @states.setter
-    def states(self, valor: Set[str]):
-        self.estados = valor
-
-    @property
-    def input_alphabet(self) -> Set[str]:
-        return self.alfabeto_entrada
-
-    @input_alphabet.setter
-    def input_alphabet(self, valor: Set[str]):
-        self.alfabeto_entrada = valor
-
-    @property
-    def tape_alphabet(self) -> Set[str]:
-        return self.alfabeto_cinta
-
-    @tape_alphabet.setter
-    def tape_alphabet(self, valor: Set[str]):
-        self.alfabeto_cinta = valor
-
-    @property
-    def initial_state(self) -> str:
-        return self.estado_inicial
-
-    @initial_state.setter
-    def initial_state(self, valor: str):
-        self.estado_inicial = valor
-
-    @property
-    def accept_states(self) -> Set[str]:
-        return self.estados_aceptacion
-
-    @accept_states.setter
-    def accept_states(self, valor: Set[str]):
-        self.estados_aceptacion = valor
-
-    @property
-    def reject_states(self) -> Set[str]:
-        return self.estados_rechazo
-
-    @reject_states.setter
-    def reject_states(self, valor: Set[str]):
-        self.estados_rechazo = valor
-
-    @property
-    def transitions(self) -> Dict[ClaveTransicion, ValorTransicion]:
-        return self.transiciones
-
-    @transitions.setter
-    def transitions(self, valor: Dict[ClaveTransicion, ValorTransicion]):
-        self.transiciones = valor
-
-    @property
-    def tape(self) -> Dict[int, str]:
-        return self.cinta
-
-    @tape.setter
-    def tape(self, valor: Dict[int, str]):
-        self.cinta = valor
-
-    @property
-    def head_position(self) -> int:
-        return self.posicion_cabezal
-
-    @head_position.setter
-    def head_position(self, valor: int):
-        self.posicion_cabezal = valor
-
-    @property
-    def current_state(self) -> str:
-        return self.estado_actual
-
-    @current_state.setter
-    def current_state(self, valor: str):
-        self.estado_actual = valor
-
-    @property
-    def step_count(self) -> int:
-        return self.contador_pasos
-
-    @step_count.setter
-    def step_count(self, valor: int):
-        self.contador_pasos = valor
-
-    @property
-    def halted(self) -> bool:
-        return self.detenida
-
-    @halted.setter
-    def halted(self, valor: bool):
-        self.detenida = valor
-
-    @property
-    def accepted(self) -> bool:
-        return self.aceptada
-
-    @accepted.setter
-    def accepted(self, valor: bool):
-        self.aceptada = valor
-
-    @property
-    def rejected(self) -> bool:
-        return self.rechazada
-
-    @rejected.setter
-    def rejected(self, valor: bool):
-        self.rechazada = valor
-
-    @property
-    def history(self) -> List[RegistroPaso]:
-        return self.historial
-
-    @history.setter
-    def history(self, valor: List[RegistroPaso]):
-        self.historial = valor
-
 
     def agregar_transicion(
         self,
@@ -595,23 +370,9 @@ class MaquinaTuring:
                     "nuevo_estado": valor.nuevo_estado,
                     "simbolo_escrito": valor.simbolo_escrito,
                     "direccion": valor.direccion.value,
-                    # Claves de compatibilidad
-                    "state": clave.estado,
-                    "read_symbol": clave.simbolo,
-                    "next_state": valor.nuevo_estado,
-                    "write_symbol": valor.simbolo_escrito,
-                    "direction": valor.direccion.value,
                 }
                 for clave, valor in sorted(self.transiciones.items(), key=lambda x: (x[0].estado, x[0].simbolo))
             ],
-            "name": self.nombre,
-            "blank_symbol": self.simbolo_blanco,
-            "input_alphabet": sorted(list(self.alfabeto_entrada)),
-            "tape_alphabet": sorted(list(self.alfabeto_cinta)),
-            "states": sorted(list(self.estados)),
-            "initial_state": self.estado_inicial,
-            "accept_states": sorted(list(self.estados_aceptacion)),
-            "reject_states": sorted(list(self.estados_rechazo)),
         }
 
     to_dict = a_diccionario
